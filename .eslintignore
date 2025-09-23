@@ -1,0 +1,8 @@
+node_modules/
+dist/
+**/*.js
+**/*.d.ts
+gulpfile.js
+.eslintrc.js
+.eslintrc.prepublish.js
+.prettierrc.js

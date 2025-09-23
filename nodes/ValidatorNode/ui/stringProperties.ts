@@ -1,0 +1,279 @@
+import { INodeProperties } from 'n8n-workflow';
+
+export const stringProperties: INodeProperties[] = [
+  {
+    displayName: 'String Data',
+    name: 'stringData',
+    type: 'string',
+    default: '',
+    placeholder: 'Enter string data',
+    description: 'Data to be validated as a string',
+    displayOptions: {
+      show: {
+        validationType: ['string', 'enum'],
+      },
+    },
+  },
+  {
+    displayName: 'String Format',
+    name: 'stringFormat',
+    type: 'options',
+    options: [
+      { name: 'Alphanumeric (letters and numbers)', value: 'alphanumeric' },
+      { name: 'Base64 Encoded', value: 'base64' },
+      { name: 'BIC/SWIFT Code', value: 'bic' },
+      { name: 'Bitcoin Address', value: 'btcAddress' },
+      { name: 'Credit Card Number', value: 'creditCard' },
+      { name: 'Currency Amount', value: 'currency' },
+      { name: 'Custom Regex Pattern', value: 'regex' },
+      { name: 'Domain Name (FQDN)', value: 'fqdn' },
+      { name: 'Email Address', value: 'email' },
+      { name: 'Ethereum Address', value: 'ethereumAddress' },
+      { name: 'GPS Coordinates (Lat/Long)', value: 'latlong' },
+      { name: 'Hash (Various Formats)', value: 'hash' },
+      { name: 'Hexadecimal Color', value: 'hexColor' },
+      { name: 'Hexadecimal String', value: 'hexadecimal' },
+      { name: 'IBAN (Bank Account)', value: 'iban' },
+      { name: 'IP Address (IPv4 & IPv6)', value: 'ipAddress' },
+      { name: 'IPv4 Address Only', value: 'ipv4Address' },
+      { name: 'IPv6 Address Only', value: 'ipv6Address' },
+      { name: 'IP Range (CIDR)', value: 'ipRange' },
+      { name: 'ISBN (Book Identifier)', value: 'isbn' },
+      { name: 'ISO 8601 Date', value: 'iso8601' },
+      { name: 'JSON Web Token (JWT)', value: 'jwt' },
+      { name: 'Letters Only', value: 'alpha' },
+      { name: 'MAC Address', value: 'macAddress' },
+      { name: 'Mailto URI', value: 'mailtoUri' },
+      { name: 'MD5 Hash', value: 'md5' },
+      { name: 'MIME Type', value: 'mimeType' },
+      { name: 'MongoDB Object ID', value: 'mongoId' },
+      { name: 'Network Port (1-65535)', value: 'port' },
+      { name: 'None', value: 'none' },
+      { name: 'Numbers Only', value: 'numeric' },
+      { name: 'Phone Number', value: 'mobilePhone' },
+      { name: 'Postal Code', value: 'postalCode' },
+      { name: 'RFC 3339 Date', value: 'rfc3339' },
+      { name: 'Semantic Version (1.2.3)', value: 'semver' },
+      { name: 'Strong Password', value: 'strongPassword' },
+      { name: 'Tax ID Number', value: 'taxId' },
+      { name: 'Time Format', value: 'time' },
+      { name: 'URL', value: 'url' },
+      { name: 'URL Slug (kebab-case)', value: 'slug' },
+      { name: 'UUID', value: 'uuid' },
+      { name: 'Valid JSON', value: 'json' },
+      { name: 'VAT Number', value: 'vat' },
+      { name: 'Whole Numbers Only', value: 'integer' },
+    ],
+    default: 'none',
+    description:
+      'Choose the string format to validate against. Each format uses secure, battle-tested validation rules.',
+    displayOptions: {
+      show: {
+        validationType: ['string'],
+      },
+    },
+  },
+  // Email options
+  { displayName: 'Email Options', name: 'emailOptionsNotice', type: 'notice', default: '', description: 'Configure email validation behaviour', displayOptions: { show: { validationType: ['string'], stringFormat: ['email'] } } },
+  { displayName: 'Allow Display Name', name: 'emailAllowDisplayName', type: 'boolean', default: false, displayOptions: { show: { validationType: ['string'], stringFormat: ['email'] } } },
+  { displayName: 'Require Display Name', name: 'emailRequireDisplayName', type: 'boolean', default: false, displayOptions: { show: { validationType: ['string'], stringFormat: ['email'] } } },
+  { displayName: 'Allow UTF8 Local Part', name: 'emailAllowUtf8LocalPart', type: 'boolean', default: true, displayOptions: { show: { validationType: ['string'], stringFormat: ['email'] } } },
+  { displayName: 'Require TLD', name: 'emailRequireTld', type: 'boolean', default: true, displayOptions: { show: { validationType: ['string'], stringFormat: ['email'] } } },
+  { displayName: 'Allow IP Domain', name: 'emailAllowIpDomain', type: 'boolean', default: false, displayOptions: { show: { validationType: ['string'], stringFormat: ['email'] } } },
+  { displayName: 'Ignore Max Length', name: 'emailIgnoreMaxLength', type: 'boolean', default: false, displayOptions: { show: { validationType: ['string'], stringFormat: ['email'] } } },
+  { displayName: 'Domain Specific Validation', name: 'emailDomainSpecificValidation', type: 'boolean', default: false, displayOptions: { show: { validationType: ['string'], stringFormat: ['email'] } } },
+
+  // URL options
+  { displayName: 'Require Protocol', name: 'urlRequireProtocol', type: 'boolean', default: false, displayOptions: { show: { validationType: ['string'], stringFormat: ['url'] } } },
+  { displayName: 'Require TLD', name: 'urlRequireTld', type: 'boolean', default: true, displayOptions: { show: { validationType: ['string'], stringFormat: ['url'] } } },
+  { displayName: 'Allow Underscores', name: 'urlAllowUnderscores', type: 'boolean', default: false, displayOptions: { show: { validationType: ['string'], stringFormat: ['url'] } } },
+  { displayName: 'Allow Trailing Dot', name: 'urlAllowTrailingDot', type: 'boolean', default: false, displayOptions: { show: { validationType: ['string'], stringFormat: ['url'] } } },
+  { displayName: 'Allow Fragments', name: 'urlAllowFragments', type: 'boolean', default: true, displayOptions: { show: { validationType: ['string'], stringFormat: ['url'] } } },
+  { displayName: 'Allow Query Components', name: 'urlAllowQueryComponents', type: 'boolean', default: true, displayOptions: { show: { validationType: ['string'], stringFormat: ['url'] } } },
+  { displayName: 'Disallow Auth In URL', name: 'urlDisallowAuth', type: 'boolean', default: false, displayOptions: { show: { validationType: ['string'], stringFormat: ['url'] } } },
+  { displayName: 'Validate Length', name: 'urlValidateLength', type: 'boolean', default: true, displayOptions: { show: { validationType: ['string'], stringFormat: ['url'] } } },
+
+  // FQDN options
+  { displayName: 'Require TLD', name: 'fqdnRequireTld', type: 'boolean', default: true, displayOptions: { show: { validationType: ['string'], stringFormat: ['fqdn'] } } },
+  { displayName: 'Allow Underscores', name: 'fqdnAllowUnderscores', type: 'boolean', default: false, displayOptions: { show: { validationType: ['string'], stringFormat: ['fqdn'] } } },
+  { displayName: 'Allow Trailing Dot', name: 'fqdnAllowTrailingDot', type: 'boolean', default: false, displayOptions: { show: { validationType: ['string'], stringFormat: ['fqdn'] } } },
+  { displayName: 'Allow Numeric TLD', name: 'fqdnAllowNumericTld', type: 'boolean', default: false, displayOptions: { show: { validationType: ['string'], stringFormat: ['fqdn'] } } },
+  { displayName: 'Allow Wildcard', name: 'fqdnAllowWildcard', type: 'boolean', default: false, displayOptions: { show: { validationType: ['string'], stringFormat: ['fqdn'] } } },
+
+  // UUID/ISBN versions
+  { displayName: 'UUID Version', name: 'uuidVersion', type: 'options', options: [ { name: 'All', value: 'all' }, { name: 'v3', value: '3' }, { name: 'v4', value: '4' }, { name: 'v5', value: '5' } ], default: 'all', displayOptions: { show: { validationType: ['string'], stringFormat: ['uuid'] } } },
+  { displayName: 'ISBN Version', name: 'isbnVersion', type: 'options', options: [ { name: 'Both', value: 'both' }, { name: 'ISBN-10', value: '10' }, { name: 'ISBN-13', value: '13' } ], default: 'both', displayOptions: { show: { validationType: ['string'], stringFormat: ['isbn'] } } },
+
+  // Phone options
+  // google-libphonenumber options
+  { displayName: 'Phone Region', name: 'phoneRegion', type: 'options', options: [
+    { name: 'Unknown/International (ZZ)', value: 'ZZ' },
+    { name: 'Australia (AU)', value: 'AU' },
+    { name: 'New Zealand (NZ)', value: 'NZ' },
+    { name: 'United States (US)', value: 'US' },
+    { name: 'United Kingdom (GB)', value: 'GB' },
+    { name: 'Canada (CA)', value: 'CA' },
+    { name: 'Germany (DE)', value: 'DE' },
+    { name: 'France (FR)', value: 'FR' },
+    { name: 'India (IN)', value: 'IN' },
+    { name: 'Japan (JP)', value: 'JP' },
+    { name: 'Singapore (SG)', value: 'SG' },
+    { name: 'Custom...', value: '__custom__' },
+  ], default: 'ZZ', description: 'ISO 3166-1 alpha-2 region. Used for parsing numbers without country code.', displayOptions: { show: { validationType: ['string'], stringFormat: ['mobilePhone'] } } },
+  { displayName: 'Phone Region (Custom)', name: 'phoneRegionCustom', type: 'string', default: '', placeholder: 'e.g., BR', description: 'Provide a custom ISO 3166-1 alpha-2 code', displayOptions: { show: { validationType: ['string'], stringFormat: ['mobilePhone'], phoneRegion: ['__custom__'] } } },
+  { displayName: 'Validation Mode', name: 'phoneValidationMode', type: 'options', options: [
+    { name: 'Valid (Strict)', value: 'valid' },
+    { name: 'Possible (Lenient)', value: 'possible' },
+    { name: 'Valid For Region', value: 'validForRegion' },
+    { name: 'Possible For Type', value: 'possibleForType' },
+  ], default: 'valid', description: 'Select which libphonenumber validation to apply.', displayOptions: { show: { validationType: ['string'], stringFormat: ['mobilePhone'] } } },
+  { displayName: 'Allowed Types', name: 'phoneAllowedTypes', type: 'multiOptions', options: [
+    { name: 'Fixed Line', value: 'FIXED_LINE' },
+    { name: 'Mobile', value: 'MOBILE' },
+    { name: 'Fixed Line Or Mobile', value: 'FIXED_LINE_OR_MOBILE' },
+    { name: 'Toll Free', value: 'TOLL_FREE' },
+    { name: 'Premium Rate', value: 'PREMIUM_RATE' },
+    { name: 'Shared Cost', value: 'SHARED_COST' },
+    { name: 'VoIP', value: 'VOIP' },
+    { name: 'Personal Number', value: 'PERSONAL_NUMBER' },
+    { name: 'Pager', value: 'PAGER' },
+    { name: 'UAN', value: 'UAN' },
+    { name: 'Voicemail', value: 'VOICEMAIL' },
+    { name: 'Unknown', value: 'UNKNOWN' },
+  ], default: [], description: 'If set, the number type must match one of these.', displayOptions: { show: { validationType: ['string'], stringFormat: ['mobilePhone'] } } },
+  { displayName: 'Treat Fixed-Line-or-Mobile as Mobile', name: 'phoneTreatFixedLineOrMobileAsMobile', type: 'boolean', default: true, description: 'When Mobile is allowed, accept Fixed-Line-or-Mobile as Mobile.', displayOptions: { show: { validationType: ['string'], stringFormat: ['mobilePhone'] } } },
+
+  // Phone rewrite/format options (used when node is in rewrite-phone mode)
+  { displayName: 'Rewrite Format', name: 'phoneRewriteFormat', type: 'options', options: [
+    { name: 'E.164 (e.g. +61412345678)', value: 'E164' },
+    { name: 'International (e.g. +61 412 345 678)', value: 'INTERNATIONAL' },
+    { name: 'National (e.g. 0412 345 678)', value: 'NATIONAL' },
+    { name: 'RFC3966 (e.g. tel:+61-412-345-678)', value: 'RFC3966' },
+  ], default: 'E164', description: 'Choose the target format for rewriting the number.', displayOptions: { show: { validationType: ['string'], stringFormat: ['mobilePhone'] } } },
+  { displayName: 'On Invalid', name: 'phoneRewriteOnInvalid', type: 'options', options: [
+    { name: 'Leave As Is', value: 'leave-as-is' },
+    { name: 'Empty String', value: 'empty' },
+    { name: 'Null', value: 'null' },
+    { name: 'Throw Error (fail item)', value: 'error' },
+  ], default: 'leave-as-is', description: 'What to do when the number cannot be parsed/validated for formatting.', displayOptions: { show: { validationType: ['string'], stringFormat: ['mobilePhone'] } } },
+  { displayName: 'Keep Extension', name: 'phoneRewriteKeepExtension', type: 'boolean', default: true, description: 'Preserve extensions when present (RFC3966 appends ;ext=1234).', displayOptions: { show: { validationType: ['string'], stringFormat: ['mobilePhone'] } } },
+  { displayName: 'Output Property', name: 'phoneRewriteOutputProperty', type: 'string', default: '', placeholder: 'e.g., customerPhoneE164', description: 'Where to write the formatted value (defaults to <name>Formatted).', displayOptions: { show: { validationType: ['string'], stringFormat: ['mobilePhone'] } } },
+  { displayName: 'Digit Separator', name: 'phoneRewriteSeparatorMode', type: 'options', options: [
+    { name: 'Space', value: 'space' },
+    { name: 'Hyphen', value: 'hyphen' },
+    { name: 'Custom', value: 'custom' },
+  ], default: 'space', description: 'Separator to use between digit groups (applies to INTERNATIONAL/NATIONAL).', displayOptions: { show: { validationType: ['string'], stringFormat: ['mobilePhone'] } } },
+  { displayName: 'Custom Separator', name: 'phoneRewriteSeparatorCustom', type: 'string', default: '', placeholder: 'e.g.,  a0', description: 'Custom separator string when mode is Custom. Leave empty for space.', displayOptions: { show: { validationType: ['string'], stringFormat: ['mobilePhone'], phoneRewriteSeparatorMode: ['custom'] } } },
+  { displayName: 'Postal Code Locale', name: 'postalCodeLocale', type: 'options', options: [
+    { name: 'Any', value: 'any' },
+    { name: 'Australia (AU)', value: 'AU' },
+    { name: 'New Zealand (NZ)', value: 'NZ' },
+    { name: 'United States (US)', value: 'US' },
+    { name: 'United Kingdom (GB)', value: 'GB' },
+    { name: 'Canada (CA)', value: 'CA' },
+    { name: 'Germany (DE)', value: 'DE' },
+    { name: 'France (FR)', value: 'FR' },
+    { name: 'India (IN)', value: 'IN' },
+    { name: 'Japan (JP)', value: 'JP' },
+    { name: 'Singapore (SG)', value: 'SG' },
+    { name: 'Custom...', value: '__custom__' },
+  ], default: 'any', description: 'Country code for postal code validation', displayOptions: { show: { validationType: ['string'], stringFormat: ['postalCode'] } } },
+  { displayName: 'Postal Code Locale (Custom)', name: 'postalCodeLocaleCustom', type: 'string', default: '', placeholder: 'e.g., BR', description: 'Provide a custom country code', displayOptions: { show: { validationType: ['string'], stringFormat: ['postalCode'], postalCodeLocale: ['__custom__'] } } },
+
+  // Hash algorithm
+  { displayName: 'Hash Algorithm', name: 'hashAlgorithm', type: 'options', options: [
+    { name: 'MD4', value: 'md4' },
+    { name: 'MD5', value: 'md5' },
+    { name: 'SHA1', value: 'sha1' },
+    { name: 'SHA256', value: 'sha256' },
+    { name: 'SHA384', value: 'sha384' },
+    { name: 'SHA512', value: 'sha512' },
+    { name: 'RIPEMD128', value: 'ripemd128' },
+    { name: 'RIPEMD160', value: 'ripemd160' },
+    { name: 'Tiger128', value: 'tiger128' },
+    { name: 'Tiger160', value: 'tiger160' },
+    { name: 'Tiger192', value: 'tiger192' },
+    { name: 'CRC32', value: 'crc32' },
+    { name: 'CRC32B', value: 'crc32b' },
+  ], default: 'sha256', displayOptions: { show: { validationType: ['string'], stringFormat: ['hash','md5'] } } },
+
+  // ISO8601 options
+  { displayName: 'Strict', name: 'isoStrict', type: 'boolean', default: false, displayOptions: { show: { validationType: ['string'], stringFormat: ['iso8601'] } } },
+  { displayName: 'Strict Separator', name: 'isoStrictSeparator', type: 'boolean', default: false, displayOptions: { show: { validationType: ['string'], stringFormat: ['iso8601'] } } },
+
+  // Time options
+  { displayName: 'Hour Format', name: 'timeHourFormat', type: 'options', options: [ { name: '24 Hour', value: 'hour24' }, { name: '12 Hour', value: 'hour12' } ], default: 'hour24', displayOptions: { show: { validationType: ['string'], stringFormat: ['time'] } } },
+  { displayName: 'Mode', name: 'timeMode', type: 'options', options: [ { name: 'HH:MM', value: 'default' }, { name: 'HH:MM:SS', value: 'withSeconds' } ], default: 'default', displayOptions: { show: { validationType: ['string'], stringFormat: ['time'] } } },
+
+  // Strong password options (subset)
+  { displayName: 'Min Length', name: 'strongPasswordMinLength', type: 'number', default: undefined, displayOptions: { show: { validationType: ['string'], stringFormat: ['strongPassword'] } } },
+  { displayName: 'Min Lowercase', name: 'strongPasswordMinLowercase', type: 'number', default: undefined, displayOptions: { show: { validationType: ['string'], stringFormat: ['strongPassword'] } } },
+  { displayName: 'Min Uppercase', name: 'strongPasswordMinUppercase', type: 'number', default: undefined, displayOptions: { show: { validationType: ['string'], stringFormat: ['strongPassword'] } } },
+  { displayName: 'Min Numbers', name: 'strongPasswordMinNumbers', type: 'number', default: undefined, displayOptions: { show: { validationType: ['string'], stringFormat: ['strongPassword'] } } },
+  { displayName: 'Min Symbols', name: 'strongPasswordMinSymbols', type: 'number', default: undefined, displayOptions: { show: { validationType: ['string'], stringFormat: ['strongPassword'] } } },
+  { displayName: 'Return Score', name: 'strongPasswordReturnScore', type: 'boolean', default: false, displayOptions: { show: { validationType: ['string'], stringFormat: ['strongPassword'] } } },
+
+  // Currency options (subset)
+  { displayName: 'Currency Symbol', name: 'currencySymbol', type: 'string', default: '', displayOptions: { show: { validationType: ['string'], stringFormat: ['currency'] } } },
+  { displayName: 'Require Symbol', name: 'currencyRequireSymbol', type: 'boolean', default: false, displayOptions: { show: { validationType: ['string'], stringFormat: ['currency'] } } },
+  { displayName: 'Allow Negatives', name: 'currencyAllowNegatives', type: 'boolean', default: true, displayOptions: { show: { validationType: ['string'], stringFormat: ['currency'] } } },
+  { displayName: 'Allow Space After Symbol', name: 'currencyAllowSpaceAfterSymbol', type: 'boolean', default: false, displayOptions: { show: { validationType: ['string'], stringFormat: ['currency'] } } },
+  { displayName: 'Allow Decimal', name: 'currencyAllowDecimal', type: 'boolean', default: true, displayOptions: { show: { validationType: ['string'], stringFormat: ['currency'] } } },
+  { displayName: 'Require Decimal', name: 'currencyRequireDecimal', type: 'boolean', default: false, displayOptions: { show: { validationType: ['string'], stringFormat: ['currency'] } } },
+
+  // Lat/Long
+  { displayName: 'Check DMS Format', name: 'latlongCheckDMS', type: 'boolean', default: false, displayOptions: { show: { validationType: ['string'], stringFormat: ['latlong'] } } },
+
+  // VAT and Tax ID options
+  { displayName: 'VAT Country Code', name: 'vatCountryCode', type: 'options', options: [
+    { name: 'Any', value: 'any' },
+    { name: 'Australia (AU)', value: 'AU' },
+    { name: 'New Zealand (NZ)', value: 'NZ' },
+    { name: 'United States (US)', value: 'US' },
+    { name: 'United Kingdom (GB)', value: 'GB' },
+    { name: 'Canada (CA)', value: 'CA' },
+    { name: 'Germany (DE)', value: 'DE' },
+    { name: 'France (FR)', value: 'FR' },
+    { name: 'India (IN)', value: 'IN' },
+    { name: 'Japan (JP)', value: 'JP' },
+    { name: 'Singapore (SG)', value: 'SG' },
+    { name: 'Custom...', value: '__custom__' },
+  ], default: 'any', description: 'Country code for VAT validation', displayOptions: { show: { validationType: ['string'], stringFormat: ['vat'] } } },
+  { displayName: 'VAT Country Code (Custom)', name: 'vatCountryCodeCustom', type: 'string', default: '', placeholder: 'e.g., BR', description: 'Provide a custom country code', displayOptions: { show: { validationType: ['string'], stringFormat: ['vat'], vatCountryCode: ['__custom__'] } } },
+  { displayName: 'Tax ID Locale', name: 'taxIdLocale', type: 'options', options: [
+    { name: 'United States (en-US)', value: 'en-US' },
+    { name: 'Australia (en-AU)', value: 'en-AU' },
+    { name: 'United Kingdom (en-GB)', value: 'en-GB' },
+    { name: 'Canada (en-CA)', value: 'en-CA' },
+    { name: 'Custom...', value: '__custom__' },
+  ], default: 'en-US', description: 'Locale for taxId validation', displayOptions: { show: { validationType: ['string'], stringFormat: ['taxId'] } } },
+  { displayName: 'Tax ID Locale (Custom)', name: 'taxIdLocaleCustom', type: 'string', default: '', placeholder: 'e.g., fr-FR', description: 'Provide a custom locale', displayOptions: { show: { validationType: ['string'], stringFormat: ['taxId'], taxIdLocale: ['__custom__'] } } },
+  {
+    displayName: 'Regex Pattern',
+    name: 'regexPattern',
+    type: 'string',
+    default: '',
+    placeholder: 'Enter regex pattern (e.g., ^[A-Z]{2,3}$)',
+    description: 'Regular expression pattern for custom validation',
+    displayOptions: {
+      show: {
+        validationType: ['string'],
+        stringFormat: ['regex'],
+      },
+    },
+  },
+  {
+    displayName: 'Required',
+    name: 'required',
+    type: 'boolean',
+    default: false,
+    description: 'Whether the input field is required',
+    displayOptions: {
+      show: {
+        validationType: ['string', 'enum'],
+      },
+    },
+  },
+];
+
+
