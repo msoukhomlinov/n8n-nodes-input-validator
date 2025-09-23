@@ -2,7 +2,7 @@
 
 All notable changes to this project are documented here. This project follows Semantic Versioning.
 
-## 2.0.0 - 2025-09-23
+## 2.0.1 - 2025-09-23
 
 - Breaking: Node internal name changed from `validatorNode` to `inputValidator` (existing workflows may need to re-add the node).
 - Breaking: Package renamed to `n8n-nodes-input-validator` and moved to a new repository.
