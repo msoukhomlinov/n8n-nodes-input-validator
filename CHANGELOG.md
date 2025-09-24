@@ -2,6 +2,10 @@
 
 All notable changes to this project are documented here. This project follows Semantic Versioning.
 
+## 2.0.2 - 2025-09-24
+
+- Removed Custom Message As New Sentence
+
 ## 2.0.1 - 2025-09-23
 
 - Breaking: Node internal name changed from `validatorNode` to `inputValidator` (existing workflows may need to re-add the node).

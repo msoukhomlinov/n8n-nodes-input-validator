@@ -46,20 +46,6 @@ export const commonProperties: INodeProperties[] = [
       },
     },
   },
-  {
-    displayName: 'Custom Message As New Sentence',
-    name: 'customMessageAsSentence',
-    type: 'boolean',
-    default: false,
-    description: 'When appending/prepending, put custom message as a new sentence instead of separated with |',
-    displayOptions: {
-      show: {
-        validationType: ['string', 'number', 'boolean', 'date', 'enum'],
-        useCustomErrorMessage: [true],
-        customMessagePlacement: ['append', 'prepend'],
-      },
-    },
-  },
 ];
 
 

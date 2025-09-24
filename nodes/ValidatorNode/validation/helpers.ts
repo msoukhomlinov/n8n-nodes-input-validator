@@ -10,24 +10,19 @@ export function appendCustomErrorMessage(baseMessage: string, field?: InputField
   }
 
   const placement = field?.customMessagePlacement || 'append';
-  const asSentence = field?.customMessageAsSentence === true;
 
   if (placement === 'replace') {
     return custom;
   }
 
-  const separator = asSentence ? ' SENTENCE_SEP ' : ' | ';
+  // Always use sentence logic (no pipe separators)
+  const ensureSentence = (text: string) => /[.!?]\s*$/.test(text) ? text.trim() : `${text.trim()}.`;
+
   let composed: string;
   if (placement === 'prepend') {
-    composed = `${custom}${separator}${baseMessage}`;
+    composed = `${ensureSentence(custom)} ${baseMessage.trim()}`;
   } else {
-    composed = `${baseMessage}${separator}${custom}`;
-  }
-
-  if (asSentence) {
-    const ensureSentence = (text: string) => /[.!?]\s*$/.test(text) ? text.trim() : `${text.trim()}.`;
-    const [first, second] = composed.split(' SENTENCE_SEP ');
-    return `${ensureSentence(first)} ${second.trim()}`;
+    composed = `${ensureSentence(baseMessage)} ${custom.trim()}`;
   }
 
   return composed;

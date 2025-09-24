@@ -187,11 +187,12 @@ export class ValidatorNode implements INodeType {
         } else {
           // output error
           let errorOutput = '';
+          const ensureSentence = (text: string) => /[.!?]\s*$/.test(text) ? text.trim() : `${text.trim()}.`;
           for (let i = 0; i < errors.length; i++){
             if (errorOutput) {
-              errorOutput += ' | ';
+              errorOutput += ' ';
             }
-            errorOutput += `${errors[i].field}: ${errors[i].message}`;
+            errorOutput += ensureSentence(`${errors[i].field}: ${errors[i].message}`);
           }
           throw new NodeOperationError(this.getNode(), `Item failed validation. ${errorOutput}`);
         }

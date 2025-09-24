@@ -64,7 +64,6 @@ export interface InputField {
     // Custom error composition controls
     useCustomErrorMessage?: boolean;
     customMessagePlacement?: 'append' | 'prepend' | 'replace';
-    customMessageAsSentence?: boolean; // when true, join as new sentence instead of pipe
 
     // String validator option fields (subset of validator.js options for usability)
     // Email options
