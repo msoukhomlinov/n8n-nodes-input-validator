@@ -2,6 +2,18 @@
 
 All notable changes to this project are documented here. This project follows Semantic Versioning.
 
+## 2.1.0 - 2025-09-26
+### Node Mode Enhancements:
+- **UI Improvements**: Phone rewrite/format options now automatically hide in Output Validation Results and Output Items modes for cleaner interface
+- **Output Items Mode**: Added `isValid` property to output while preserving all original item data and existing error behaviour
+- **Rewrite/Format Phone Numbers Mode**: Added `isValid` validation status to output alongside phone formatting
+- **New Feature**: Added "Phone Rewrite Output Mode" option in Rewrite/Format mode with choice between:
+  - **Separate Fields** (default): Creates new formatted fields (existing behaviour, backward compatible)
+  - **Overwrite Original**: Replaces original field values with formatted phone numbers
+- **Enhanced Metadata**: Updated `phoneRewrites` array to accurately reflect actual output locations based on user choice
+- **Backward Compatibility**: All changes maintain existing workflow behaviour with new features as opt-in defaults
+- Enabled usableAsTool
+
 ## 2.0.2 - 2025-09-24
 
 - Removed Custom Message As New Sentence

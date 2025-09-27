@@ -1,7 +1,7 @@
 import validator from 'validator';
 import { InputField } from '../types';
 import { FieldError, ValidationHandler } from './types';
-import { appendCustomErrorMessage } from './helpers';
+import { appendCustomErrorMessage, buildRequiredMessage } from './helpers';
 
 export const handleDateValidation: ValidationHandler = (field: InputField): FieldError[] => {
   const { name, required, dateData } = field;
@@ -10,7 +10,7 @@ export const handleDateValidation: ValidationHandler = (field: InputField): Fiel
   const valueToValidate = dateData || '';
 
   if (required && valueToValidate === '') {
-    errors.push({ field: name, message: appendCustomErrorMessage('Date cannot be empty', field) });
+    errors.push({ field: name, message: appendCustomErrorMessage(buildRequiredMessage(field), field) });
     return errors;
   }
 

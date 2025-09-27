@@ -1,11 +1,13 @@
 import validator from 'validator';
 import { PhoneNumberUtil, PhoneNumberType } from 'google-libphonenumber';
 import { normalizePhoneInput } from './helpers';
+import { isPhoneTypeAllowed, getPhoneTypeName } from './helpers';
 import { InputField } from '../types';
 import { FieldError, ValidationHandler } from './types';
-import { appendCustomErrorMessage } from './helpers';
+import { appendCustomErrorMessage, buildRequiredMessage } from './helpers';
 
-type ValidationFunction = (value: string, field?: InputField) => boolean;
+type ValidationResult = boolean | { isValid: boolean; error?: string };
+type ValidationFunction = (value: string, field?: InputField) => ValidationResult;
 
 const validationFunctions: Record<string, ValidationFunction> = {
   none: () => true,
@@ -41,58 +43,92 @@ const validationFunctions: Record<string, ValidationFunction> = {
     const phoneUtil = PhoneNumberUtil.getInstance();
     const selectedRegion = field?.phoneRegion === '__custom__' ? field?.phoneRegionCustom : field?.phoneRegion;
     const region = (selectedRegion || 'ZZ').toUpperCase();
-    try {
-      const normalized = normalizePhoneInput(str);
-      const number = phoneUtil.parseAndKeepRawInput(normalized || str, region);
+    const withRegionText = (base: string) => (region && region !== 'ZZ' ? `${base} for region ${region}` : base);
 
-      // Choose validation mode
-      const mode = field?.phoneValidationMode || 'valid';
-      let passes = false;
-      switch (mode) {
-        case 'possible':
-          passes = phoneUtil.isPossibleNumber(number);
-          break;
-        case 'validForRegion':
-          passes = phoneUtil.isValidNumberForRegion(number, region);
-          break;
-        case 'possibleForType': {
-          if (!field?.phoneAllowedTypes || field.phoneAllowedTypes.length === 0) {
-            passes = phoneUtil.isPossibleNumber(number);
+    const validateWithRegion = (testRegion: string) => {
+      try {
+        const normalized = normalizePhoneInput(str);
+        const number = phoneUtil.parseAndKeepRawInput(normalized || str, testRegion);
+
+        const mode = field?.phoneValidationMode || 'valid';
+        let modePasses = false;
+        switch (mode) {
+          case 'possible':
+            modePasses = phoneUtil.isPossibleNumber(number);
+            break;
+          case 'validForRegion':
+            modePasses = phoneUtil.isValidNumberForRegion(number, testRegion);
+            break;
+          case 'possibleForType': {
+            if (!field?.phoneAllowedTypes || field.phoneAllowedTypes.length === 0) {
+              modePasses = phoneUtil.isPossibleNumber(number);
+              break;
+            }
+            modePasses = (field.phoneAllowedTypes as string[]).some((allowed) => {
+              const enumType = PhoneNumberType[allowed as keyof typeof PhoneNumberType];
+              return phoneUtil.isPossibleNumberForType(number, enumType);
+            });
+
+            // If possibleForType validation failed, provide specific type mismatch error
+            if (!modePasses) {
+              const detectedType = phoneUtil.getNumberType(number);
+              const detectedLabel = getPhoneTypeName(detectedType);
+              const allowedList = (field.phoneAllowedTypes as string[]).join(', ');
+              const base = `Allowed types mismatch${testRegion && testRegion !== 'ZZ' ? ` for region ${testRegion}` : ''}: expected one of: ${allowedList}; got ${detectedLabel}`;
+              return { isValid: false, error: base };
+            }
             break;
           }
-          passes = (field.phoneAllowedTypes as string[]).some((allowed) => {
-            const enumType = PhoneNumberType[allowed as keyof typeof PhoneNumberType];
-            return phoneUtil.isPossibleNumberForType(number, enumType);
-          });
-          break;
+          case 'valid':
+          default:
+            modePasses = phoneUtil.isValidNumber(number);
+            break;
         }
-        case 'valid':
-        default:
-          passes = phoneUtil.isValidNumber(number);
-          break;
-      }
 
-      if (!passes) return false;
+        if (!modePasses) return { isValid: false, error: null };
 
-      // Apply allowed types filter if provided (common for 'MOBILE only' etc.)
-      if (field?.phoneAllowedTypes && field.phoneAllowedTypes.length > 0) {
-        const type = phoneUtil.getNumberType(number);
-        const ok = (field.phoneAllowedTypes as string[]).some((allowed) => {
-          if (allowed === 'MOBILE' && field?.phoneTreatFixedLineOrMobileAsMobile !== false) {
-            return (
-              type === PhoneNumberType.MOBILE ||
-              type === PhoneNumberType.FIXED_LINE_OR_MOBILE
-            );
+        if (field?.phoneAllowedTypes && field.phoneAllowedTypes.length > 0) {
+          const detectedType = phoneUtil.getNumberType(number);
+          const satisfies = isPhoneTypeAllowed(
+            field.phoneAllowedTypes as string[],
+            detectedType,
+            field?.phoneTreatFixedLineOrMobileAsMobile !== false,
+          );
+          if (!satisfies) {
+            const allowedList = (field.phoneAllowedTypes as string[]).join(', ');
+            const detectedLabel = getPhoneTypeName(detectedType);
+            const base = `Allowed types mismatch${testRegion && testRegion !== 'ZZ' ? ` for region ${testRegion}` : ''}: expected one of: ${allowedList}; got ${detectedLabel}`;
+            return { isValid: false, error: base };
           }
-          return PhoneNumberType[allowed as keyof typeof PhoneNumberType] === type;
-        });
-        if (!ok) return false;
-      }
+        }
 
-      return true;
-    } catch (_) {
-      return false;
+        return { isValid: true };
+      } catch (_) {
+        return { isValid: false, error: null };
+      }
+    };
+
+    // Try with the specified region first
+    const result = validateWithRegion(region);
+    if (result.isValid) return true;
+    if (result.error) return { isValid: false, error: result.error }; // Type mismatch error should be returned immediately
+
+    // If region is ZZ and validation failed, try common regions as fallback
+    if (region === 'ZZ') {
+      const fallbackRegions = ['AU', 'US', 'UK', 'CA', 'NZ', 'DE', 'FR', 'IT', 'ES', 'JP', 'IN', 'BR'];
+      for (const fallbackRegion of fallbackRegions) {
+        const fallbackResult = validateWithRegion(fallbackRegion);
+        if (fallbackResult.isValid) {
+          return true; // Valid in at least one common region
+        }
+        if (fallbackResult.error) {
+          return { isValid: false, error: fallbackResult.error }; // Type mismatch error should be returned immediately
+        }
+      }
     }
+
+    // If we get here, validation failed for all attempted regions
+    return { isValid: false, error: withRegionText('Value must be a valid phone number. For national format numbers (e.g., 0421583961), consider setting a specific region (e.g., AU) instead of ZZ.') };
   },
   postalCode: (str: string, field?: InputField) => {
     const selected = field?.postalCodeLocale === '__custom__' ? field?.postalCodeLocaleCustom : field?.postalCodeLocale;
@@ -219,6 +255,8 @@ function validateStringFormat(
   field?: InputField,
 ): { isValid: boolean; error?: string } {
   try {
+    // No special-case branch for mobilePhone here; the validator itself returns structured results
+
     if (format === 'regex') {
       if (!regexPattern) {
         return {
@@ -245,13 +283,19 @@ function validateStringFormat(
       };
     }
 
-    const isValid = validatorFn(value, field);
-    if (!isValid) {
+    const result = validatorFn(value, field);
+    if (typeof result === 'object') {
+      if (!result.isValid) {
+        const fallback = formatDescriptions[format]
+          ? `Value must be ${formatDescriptions[format]}`
+          : `Value must be valid ${format} format`;
+        return { isValid: false, error: appendCustomErrorMessage(result.error || fallback, field) };
+      }
+      return { isValid: true };
+    }
+    if (!result) {
       const description = formatDescriptions[format] || `valid ${format} format`;
-      return {
-        isValid: false,
-        error: appendCustomErrorMessage(`Value must be ${description}`, field),
-      };
+      return { isValid: false, error: appendCustomErrorMessage(`Value must be ${description}`, field) };
     }
 
     return { isValid: true };
@@ -273,7 +317,7 @@ export const handleStringValidation: ValidationHandler = (field: InputField): Fi
   const errors: FieldError[] = [];
 
   if (required && valueToValidate === '') {
-    errors.push({ field: name, message: appendCustomErrorMessage('String cannot be empty', field) });
+    errors.push({ field: name, message: appendCustomErrorMessage(buildRequiredMessage(field), field) });
     return errors;
   }
 

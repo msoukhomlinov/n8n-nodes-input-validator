@@ -1,6 +1,6 @@
 import { InputField } from '../types';
 import { FieldError, ValidationHandler } from './types';
-import { appendCustomErrorMessage } from './helpers';
+import { appendCustomErrorMessage, buildRequiredMessage } from './helpers';
 
 export const handleNumberValidation: ValidationHandler = (field: InputField): FieldError[] => {
   const {
@@ -17,7 +17,7 @@ export const handleNumberValidation: ValidationHandler = (field: InputField): Fi
   const valueToValidate = numberData;
 
   if (required && (valueToValidate === undefined || valueToValidate === null)) {
-    errors.push({ field: name, message: appendCustomErrorMessage('Value must be a number', field) });
+    errors.push({ field: name, message: appendCustomErrorMessage(buildRequiredMessage(field), field) });
     return errors;
   }
 

@@ -5,6 +5,7 @@ import { booleanProperties } from './booleanProperties';
 import { dateProperties } from './dateProperties';
 import { enumProperties } from './enumProperties';
 import { commonProperties } from './commonProperties';
+export { phoneRewriteValues } from './phoneRewrite';
 
 export const inputFieldValues: INodeProperties[] = [
   {

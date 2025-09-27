@@ -1,7 +1,7 @@
 import validator from 'validator';
 import { InputField } from '../types';
 import { FieldError, ValidationHandler } from './types';
-import { appendCustomErrorMessage } from './helpers';
+import { appendCustomErrorMessage, buildRequiredMessage } from './helpers';
 
 export const handleEnumValidation: ValidationHandler = (field: InputField): FieldError[] => {
   const { name, required, stringData, enumValues } = field;
@@ -11,7 +11,7 @@ export const handleEnumValidation: ValidationHandler = (field: InputField): Fiel
   const enumValuesArray = (enumValues || '').split(',').map(v => v.trim());
 
   if (required && valueToValidate === '') {
-    errors.push({ field: name, message: appendCustomErrorMessage('Value cannot be empty', field) });
+    errors.push({ field: name, message: appendCustomErrorMessage(buildRequiredMessage(field), field) });
     return errors;
   }
 
