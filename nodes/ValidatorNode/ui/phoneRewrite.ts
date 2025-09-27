@@ -7,7 +7,7 @@ export const phoneRewriteValues: INodeProperties[] = [
     name: 'phoneRewriteInputs',
     type: 'fixedCollection',
     placeholder: 'Add Phone Input',
-    default: { phoneRewriteInputs: [{}, {}] },
+    default: { phoneRewriteInputs: [{}] },
     typeOptions: {
       multipleValues: true,
     },
