@@ -453,6 +453,34 @@ export class ValidatorNode implements INodeType {
 
       const { isValid, errors } = validateInputFields(inputFields);
 
+      // Write validated values back to the item
+      // This ensures expressions that transform/map data are reflected in the output
+      const errorFields = new Set(errors.map(e => e.field));
+      for (const field of inputFields) {
+        // Only write back if this field passed validation
+        if (!errorFields.has(field.name)) {
+          let valueToWrite;
+          switch (field.validationType) {
+            case 'string':
+              valueToWrite = field.stringData;
+              break;
+            case 'number':
+              valueToWrite = field.numberData;
+              break;
+            case 'boolean':
+              valueToWrite = field.booleanData;
+              break;
+            case 'date':
+              valueToWrite = field.dateData;
+              break;
+            case 'enum':
+              valueToWrite = field.stringData; // enum uses stringData
+              break;
+          }
+          (item.json as Record<string, unknown>)[field.name] = valueToWrite;
+        }
+      }
+
       // Get the onInvalid behavior option
       const onInvalid = this.getNodeParameter('onInvalid', itemIndex, 'continue') as string;
 
