@@ -1,6 +1,6 @@
 {
   "name": "n8n-nodes-input-validator",
-  "version": "2.1.2",
+  "version": "2.1.4",
   "description": "Validate input data in n8n: string, number, boolean, date, enum, phone.",
   "keywords": [
     "n8n-community-node-package",
@@ -13,7 +13,7 @@
   "license": "MIT",
   "homepage": "https://github.com/msoukhomlinov/n8n-nodes-input-validator#readme",
   "author": {
-    "name": "Your Name",
+    "name": "Max Soukhomlinov",
     "url": "https://github.com/msoukhomlinov"
   },
   "contributors": [
@@ -24,7 +24,7 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/msoukhomlinov/n8n-nodes-input-validator.git"
+    "url": "git+https://github.com/msoukhomlinov/n8n-nodes-input-validator.git"
   },
   "bugs": {
     "url": "https://github.com/msoukhomlinov/n8n-nodes-input-validator/issues"
@@ -32,7 +32,10 @@
   "main": "index.js",
   "scripts": {
     "build": "tsc && gulp build:icons",
+    "clean": "node -e \"require('fs').rmSync('dist', {recursive: true, force: true})\"",
+    "prebuild": "npm run clean",
     "prepublishOnly": "npm run build",
+    "postbuild": "node -e \"const fs=require('fs'); const tsbuildinfo='dist/tsconfig.tsbuildinfo'; if(fs.existsSync(tsbuildinfo)) fs.unlinkSync(tsbuildinfo);\"",
     "dev": "tsc --watch",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",

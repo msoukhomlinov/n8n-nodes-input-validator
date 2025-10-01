@@ -453,6 +453,23 @@ export class ValidatorNode implements INodeType {
 
       const { isValid, errors } = validateInputFields(inputFields);
 
+      // Helper function to set nested property values
+      const setNestedValue = (obj: Record<string, unknown>, path: string, value: unknown): void => {
+        const parts = path.split('.');
+        let current: any = obj;
+
+        for (let i = 0; i < parts.length - 1; i++) {
+          const part = parts[i];
+          if (!(part in current) || typeof current[part] !== 'object' || current[part] === null) {
+            current[part] = {};
+          }
+          current = current[part];
+        }
+
+        const lastPart = parts[parts.length - 1];
+        current[lastPart] = value;
+      };
+
       // Write validated values back to the item
       // This ensures expressions that transform/map data are reflected in the output
       const errorFields = new Set(errors.map(e => e.field));
@@ -477,7 +494,13 @@ export class ValidatorNode implements INodeType {
               valueToWrite = field.stringData; // enum uses stringData
               break;
           }
-          (item.json as Record<string, unknown>)[field.name] = valueToWrite;
+
+          // Handle nested field names (e.g., "supplied_details.phone")
+          if (field.name.includes('.')) {
+            setNestedValue(item.json as Record<string, unknown>, field.name, valueToWrite);
+          } else {
+            (item.json as Record<string, unknown>)[field.name] = valueToWrite;
+          }
         }
       }
 
