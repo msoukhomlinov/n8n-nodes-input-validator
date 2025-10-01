@@ -396,7 +396,8 @@ export class ValidatorNode implements INodeType {
           }
 
           // Write outputs according to pass-through
-          const targetObj = passThrough ? (item.json as Record<string, unknown>) : {};
+          // Create a deep copy to avoid mutating the original input
+          const targetObj = passThrough ? JSON.parse(JSON.stringify(item.json)) : {};
           for (const [key, value] of Object.entries(written)) {
             if (key.includes('.')) {
               // Use dot notation helper for nested paths
@@ -406,9 +407,7 @@ export class ValidatorNode implements INodeType {
               targetObj[key] = value;
             }
           }
-          if (!passThrough) {
-            item.json = targetObj as unknown as IDataObject;
-          }
+          item.json = targetObj as unknown as IDataObject;
         } else {
           // Fallback to legacy behavior using InputField entries if no mappings configured
           for (let f = 0; f < inputFields.length; f++) {
