@@ -216,6 +216,20 @@ export class ValidatorNode implements INodeType {
         const errors: Array<{ input?: string; error: string }> = [];
         let allValid = true;
 
+        // Helper to set nested values using dot notation
+        const setNestedValue = (obj: Record<string, unknown>, path: string, value: unknown): void => {
+          const keys = path.split('.');
+          let current = obj;
+          for (let i = 0; i < keys.length - 1; i++) {
+            const key = keys[i];
+            if (!(key in current) || typeof current[key] !== 'object' || current[key] === null) {
+              current[key] = {};
+            }
+            current = current[key] as Record<string, unknown>;
+          }
+          current[keys[keys.length - 1]] = value;
+        };
+
         if (Array.isArray(mappings) && mappings.length > 0) {
           for (let m = 0; m < mappings.length; m++) {
             const mapping = mappings[m] || {} as PhoneRewriteInput;
@@ -240,27 +254,34 @@ export class ValidatorNode implements INodeType {
 
             const result = rewritePhone(originalValue as string, pseudoField);
 
-            // Output property is always the same key as the source's last path segment
+            // Output property: use explicit outputFieldName, or extract full path from source
             let outputProp = `phone${m + 1}`;
-            const pickLastSegment = (expr: string): string | undefined => {
-              if (!expr) return undefined;
-              // Normalise wrappers like {{ }} or ={{ }}
-              let t = expr.trim();
-              t = t.replace(/^=\s*/, '');
-              t = t.replace(/^\{\{\s*/, '').replace(/\s*\}\}$/, '');
-              // Support $json.prop or $json["prop"] or $json['prop']
-              const bracketMatch = t.match(/\$json\s*\[\s*['\"]([^'\"]+)['\"]\s*\]\s*$/);
-              if (bracketMatch && bracketMatch[1]) return bracketMatch[1];
-              const dotMatch = t.match(/\$json\s*\.\s*([a-zA-Z0-9_\.]+)\s*$/);
-              if (dotMatch && dotMatch[1]) return dotMatch[1].split('.').slice(-1)[0];
-              return undefined;
-            };
-            const fromRaw = typeof rawSource === 'string' ? pickLastSegment(rawSource) : undefined;
-            const fromExpr = typeof sourceExpr === 'string' ? pickLastSegment(sourceExpr) : undefined;
-            if (fromRaw && /^[a-zA-Z0-9_]+$/.test(fromRaw)) {
-              outputProp = fromRaw;
-            } else if (fromExpr && /^[a-zA-Z0-9_]+$/.test(fromExpr)) {
-              outputProp = fromExpr;
+            const explicitOutputName = mapping.outputFieldName?.trim();
+            if (explicitOutputName) {
+              // Use explicit output field name (supports dot notation)
+              outputProp = explicitOutputName;
+            } else {
+              // Auto-detect from source, preserving full path with dot notation
+              const extractPath = (expr: string): string | undefined => {
+                if (!expr) return undefined;
+                // Normalise wrappers like {{ }} or ={{ }}
+                let t = expr.trim();
+                t = t.replace(/^=\s*/, '');
+                t = t.replace(/^\{\{\s*/, '').replace(/\s*\}\}$/, '');
+                // Support $json.prop or $json["prop"] or $json['prop']
+                const bracketMatch = t.match(/\$json\s*\[\s*['\"]([^'\"]+)['\"]\s*\]\s*$/);
+                if (bracketMatch && bracketMatch[1]) return bracketMatch[1];
+                const dotMatch = t.match(/\$json\s*\.\s*([a-zA-Z0-9_\.]+)\s*$/);
+                if (dotMatch && dotMatch[1]) return dotMatch[1]; // Return full path, not just last segment
+                return undefined;
+              };
+              const fromRaw = typeof rawSource === 'string' ? extractPath(rawSource) : undefined;
+              const fromExpr = typeof sourceExpr === 'string' ? extractPath(sourceExpr) : undefined;
+              if (fromRaw && /^[a-zA-Z0-9_\.]+$/.test(fromRaw)) {
+                outputProp = fromRaw;
+              } else if (fromExpr && /^[a-zA-Z0-9_\.]+$/.test(fromExpr)) {
+                outputProp = fromExpr;
+              }
             }
 
             if (result.error && phoneRewriteOnInvalid === 'error') {
@@ -375,12 +396,18 @@ export class ValidatorNode implements INodeType {
           }
 
           // Write outputs according to pass-through
-          if (passThrough) {
-            Object.assign(item.json as Record<string, unknown>, written);
-          } else {
-            const minimal: Record<string, unknown> = {};
-            Object.assign(minimal, written);
-            item.json = minimal as unknown as IDataObject;
+          const targetObj = passThrough ? (item.json as Record<string, unknown>) : {};
+          for (const [key, value] of Object.entries(written)) {
+            if (key.includes('.')) {
+              // Use dot notation helper for nested paths
+              setNestedValue(targetObj, key, value);
+            } else {
+              // Direct assignment for simple keys
+              targetObj[key] = value;
+            }
+          }
+          if (!passThrough) {
+            item.json = targetObj as unknown as IDataObject;
           }
         } else {
           // Fallback to legacy behavior using InputField entries if no mappings configured

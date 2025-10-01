@@ -224,6 +224,7 @@ export interface InputField {
 
 export interface PhoneRewriteInput {
     source: string;
+    outputFieldName?: string;
     expectedTypes?: Array<
         | 'FIXED_LINE'
         | 'MOBILE'

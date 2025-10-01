@@ -1,6 +1,6 @@
 {
   "name": "n8n-nodes-input-validator",
-  "version": "2.1.4",
+  "version": "2.1.5",
   "description": "Validate input data in n8n: string, number, boolean, date, enum, phone.",
   "keywords": [
     "n8n-community-node-package",

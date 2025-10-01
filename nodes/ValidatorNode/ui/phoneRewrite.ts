@@ -30,6 +30,14 @@ export const phoneRewriteValues: INodeProperties[] = [
             description: 'String or expression that resolves to the phone number',
           },
           {
+            displayName: 'Output Field Name',
+            name: 'outputFieldName',
+            type: 'string',
+            default: '',
+            placeholder: 'e.g., phone or supplied_details.phone',
+            description: 'Field name for the formatted output. Supports dot notation for nesting (e.g., "contact.mobile"). If empty, auto-detects from source.',
+          },
+          {
             displayName: 'Expected Types (Optional)',
             name: 'expectedTypes',
             type: 'multiOptions',
