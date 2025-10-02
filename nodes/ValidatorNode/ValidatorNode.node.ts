@@ -209,8 +209,10 @@ export class ValidatorNode implements INodeType {
           const field = phoneValidationFields[f];
           const originalValue = field.stringData ?? '';
 
-          // Check if field is empty/null and non-required
-          const isEmptyAndOptional = !field.required && (field.stringData === null || field.stringData === undefined || field.stringData === '');
+          // Check if field is empty/null
+          const isEmpty = field.stringData === null || field.stringData === undefined || field.stringData === '';
+          const isEmptyAndOptional = !field.required && isEmpty;
+          const isEmptyAndRequired = field.required && isEmpty;
 
           // For empty optional fields, create a placeholder result so they can be realignment targets
           let result: any;
@@ -221,6 +223,17 @@ export class ValidatorNode implements INodeType {
               valid: false,
               possible: false,
               error: undefined, // No error for empty optional fields
+              type: undefined,
+            };
+          } else if (isEmptyAndRequired) {
+            // For empty required fields, create error result with proper message
+            const { buildRequiredMessage } = await import('./validation/helpers');
+            result = {
+              formatted: undefined,
+              format: (field.phoneRewriteFormat || 'E164') as 'E164' | 'INTERNATIONAL' | 'NATIONAL' | 'RFC3966',
+              valid: false,
+              possible: false,
+              error: buildRequiredMessage(field),
               type: undefined,
             };
           } else {
@@ -325,6 +338,14 @@ export class ValidatorNode implements INodeType {
             const wasRealigned = summary.correctionMade === true;
             if (wasRealigned) {
               // Successfully realigned - this is now valid
+              continue;
+            }
+            // Check if this was an empty optional field (should not count as invalid)
+            const originalField = preWrite[i]?.field;
+            const wasEmptyAndOptional = originalField && !originalField.required &&
+              (originalField.stringData === null || originalField.stringData === undefined || originalField.stringData === '');
+            if (wasEmptyAndOptional) {
+              // Empty optional fields should not mark validation as failed
               continue;
             }
             // Not realigned - check original validity
@@ -500,37 +521,42 @@ export class ValidatorNode implements INodeType {
         return true; // Keep in validationErrors for global handling
       });
 
-      const errorFields = new Set(remainingValidationErrors.map(e => e.field));
-      for (const field of inputFields) {
-        if (!errorFields.has(field.name) && !phoneErrorsWithFieldHandling.includes(field.name)) {
-          let valueToWrite;
-          switch (field.validationType) {
-            case 'string':
-              valueToWrite = field.stringData;
-              break;
-            case 'number':
-              valueToWrite = field.numberData;
-              break;
-            case 'boolean':
-              valueToWrite = field.booleanData;
-              break;
-            case 'date':
-              valueToWrite = field.dateData;
-              break;
-            case 'enum':
-              valueToWrite = field.stringData;
-              break;
-          }
+      const onInvalid = this.getNodeParameter('onInvalid', itemIndex, 'continue') as string;
 
-          if (field.name.includes('.')) {
-            setNestedValue(item.json as Record<string, unknown>, field.name, valueToWrite);
-          } else {
-            (item.json as Record<string, unknown>)[field.name] = valueToWrite;
-          }
+      // Write ALL field values first (including those that failed validation)
+      // This ensures original data structure is preserved (e.g., null values pass through)
+      // The onInvalid logic below will then overwrite error fields as needed
+      for (const field of inputFields) {
+        // Skip fields that were already handled by field-level phone error handling
+        if (phoneErrorsWithFieldHandling.includes(field.name)) {
+          continue;
+        }
+
+        let valueToWrite;
+        switch (field.validationType) {
+          case 'string':
+            valueToWrite = field.stringData;
+            break;
+          case 'number':
+            valueToWrite = field.numberData;
+            break;
+          case 'boolean':
+            valueToWrite = field.booleanData;
+            break;
+          case 'date':
+            valueToWrite = field.dateData;
+            break;
+          case 'enum':
+            valueToWrite = field.stringData;
+            break;
+        }
+
+        if (field.name.includes('.')) {
+          setNestedValue(item.json as Record<string, unknown>, field.name, valueToWrite);
+        } else {
+          (item.json as Record<string, unknown>)[field.name] = valueToWrite;
         }
       }
-
-      const onInvalid = this.getNodeParameter('onInvalid', itemIndex, 'continue') as string;
 
       if (remainingValidationErrors.length > 0 && onInvalid !== 'continue') {
         switch (onInvalid) {
