@@ -207,7 +207,6 @@ export class ValidatorNode implements INodeType {
       if (phoneValidationFields.length > 0) {
         for (let f = 0; f < phoneValidationFields.length; f++) {
           const field = phoneValidationFields[f];
-          const originalValue = field.stringData ?? '';
 
           // Check if field is empty/null
           const isEmpty = field.stringData === null || field.stringData === undefined || field.stringData === '';
@@ -216,9 +215,13 @@ export class ValidatorNode implements INodeType {
 
           // For empty optional fields, create a placeholder result so they can be realignment targets
           let result: any;
+          let originalValue: string;
           if (isEmptyAndOptional) {
+            // Preserve original value (including null) for optional empty fields
+            originalValue = field.stringData ?? '';
             result = {
-              formatted: undefined,
+              // Write the actual original value (null/undefined/empty) not coerced version
+              formatted: field.stringData,
               format: (field.phoneRewriteFormat || 'E164') as 'E164' | 'INTERNATIONAL' | 'NATIONAL' | 'RFC3966',
               valid: false,
               possible: false,
@@ -227,6 +230,7 @@ export class ValidatorNode implements INodeType {
             };
           } else if (isEmptyAndRequired) {
             // For empty required fields, create error result with proper message
+            originalValue = field.stringData ?? '';
             const { buildRequiredMessage } = await import('./validation/helpers');
             result = {
               formatted: undefined,
@@ -237,6 +241,7 @@ export class ValidatorNode implements INodeType {
               type: undefined,
             };
           } else {
+            originalValue = field.stringData ?? '';
             result = rewritePhone(originalValue, field);
 
             const fieldOnInvalid = field.phoneOnInvalid || 'use-global';
