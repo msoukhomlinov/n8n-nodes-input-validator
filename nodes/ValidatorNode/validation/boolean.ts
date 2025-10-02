@@ -6,6 +6,11 @@ export const handleBooleanValidation: ValidationHandler = (field: InputField): F
   const { name, required, booleanData } = field;
   const errors: FieldError[] = [];
 
+  // If field is not required and value is undefined/null, skip validation entirely
+  if (!required && (booleanData === undefined || booleanData === null)) {
+    return errors;
+  }
+
   if (required && booleanData === undefined) {
     errors.push({ field: name, message: appendCustomErrorMessage(buildRequiredMessage(field), field) });
   }

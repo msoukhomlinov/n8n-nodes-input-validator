@@ -16,6 +16,11 @@ export const handleNumberValidation: ValidationHandler = (field: InputField): Fi
   const errors: FieldError[] = [];
   const valueToValidate = numberData;
 
+  // If field is not required and value is null/undefined, skip validation entirely
+  if (!required && (valueToValidate === null || valueToValidate === undefined)) {
+    return errors;
+  }
+
   if (required && (valueToValidate === undefined || valueToValidate === null)) {
     errors.push({ field: name, message: appendCustomErrorMessage(buildRequiredMessage(field), field) });
     return errors;

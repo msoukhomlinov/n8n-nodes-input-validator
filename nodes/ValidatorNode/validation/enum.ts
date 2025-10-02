@@ -10,6 +10,11 @@ export const handleEnumValidation: ValidationHandler = (field: InputField): Fiel
   const valueToValidate = stringData || '';
   const enumValuesArray = (enumValues || '').split(',').map(v => v.trim());
 
+  // If field is not required and value is empty/null, skip validation entirely
+  if (!required && (stringData === null || stringData === undefined || stringData === '')) {
+    return errors;
+  }
+
   if (required && valueToValidate === '') {
     errors.push({ field: name, message: appendCustomErrorMessage(buildRequiredMessage(field), field) });
     return errors;

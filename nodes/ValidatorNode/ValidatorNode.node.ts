@@ -209,16 +209,32 @@ export class ValidatorNode implements INodeType {
           const field = phoneValidationFields[f];
           const originalValue = field.stringData ?? '';
 
-          const result = rewritePhone(originalValue, field);
+          // Check if field is empty/null and non-required
+          const isEmptyAndOptional = !field.required && (field.stringData === null || field.stringData === undefined || field.stringData === '');
+
+          // For empty optional fields, create a placeholder result so they can be realignment targets
+          let result: any;
+          if (isEmptyAndOptional) {
+            result = {
+              formatted: undefined,
+              format: (field.phoneRewriteFormat || 'E164') as 'E164' | 'INTERNATIONAL' | 'NATIONAL' | 'RFC3966',
+              valid: false,
+              possible: false,
+              error: undefined, // No error for empty optional fields
+              type: undefined,
+            };
+          } else {
+            result = rewritePhone(originalValue, field);
+
+            const fieldOnInvalid = field.phoneOnInvalid || 'use-global';
+            if (result.error && fieldOnInvalid === 'error') {
+              throw new NodeOperationError(this.getNode(), `Phone rewrite failed for '${field.name}': ${result.error}`);
+            }
+          }
 
           let outputProp = field.phoneRewriteOutputProperty?.trim();
           if (!outputProp) {
             outputProp = `${field.name}Formatted`;
-          }
-
-          const fieldOnInvalid = field.phoneOnInvalid || 'use-global';
-          if (result.error && fieldOnInvalid === 'error') {
-            throw new NodeOperationError(this.getNode(), `Phone rewrite failed for '${field.name}': ${result.error}`);
           }
 
           preWrite.push({
@@ -232,7 +248,7 @@ export class ValidatorNode implements INodeType {
           });
 
           const summary: Record<string, unknown> = {
-            name: outputProp,
+            name: field.name,  // Use input field name for realignment tracking
             original: originalValue,
             outputProperty: outputProp,
             formatted: result.formatted,
@@ -256,7 +272,8 @@ export class ValidatorNode implements INodeType {
 
           rewrites.push(summary);
 
-          if (!result.valid || result.error) {
+          // Only count as invalid if it's NOT an empty optional field
+          if (!isEmptyAndOptional && (!result.valid || result.error)) {
             allValid = false;
             if (result.error) {
               errors.push({ input: outputProp, error: result.error });

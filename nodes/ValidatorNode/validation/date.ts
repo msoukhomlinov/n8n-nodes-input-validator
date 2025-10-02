@@ -9,6 +9,11 @@ export const handleDateValidation: ValidationHandler = (field: InputField): Fiel
 
   const valueToValidate = dateData || '';
 
+  // If field is not required and value is empty/null, skip validation entirely
+  if (!required && (dateData === null || dateData === undefined || dateData === '')) {
+    return errors;
+  }
+
   if (required && valueToValidate === '') {
     errors.push({ field: name, message: appendCustomErrorMessage(buildRequiredMessage(field), field) });
     return errors;

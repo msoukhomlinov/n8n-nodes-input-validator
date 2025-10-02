@@ -95,6 +95,20 @@ const validationFunctions: Record<string, ValidationFunction> = {
             field?.phoneTreatFixedLineOrMobileAsMobile !== false,
           );
           if (!satisfies) {
+            // Check if fallback types are defined and if detected type matches any fallback type
+            const fallbackTypes = (field as any).phoneRewriteFallbackTypes as string[] | undefined;
+            if (fallbackTypes && fallbackTypes.length > 0) {
+              const satisfiesFallback = isPhoneTypeAllowed(
+                fallbackTypes,
+                detectedType,
+                field?.phoneTreatFixedLineOrMobileAsMobile !== false,
+              );
+              if (satisfiesFallback) {
+                // Type matches fallback - validation passes
+                return { isValid: true };
+              }
+            }
+
             const allowedList = (field.phoneAllowedTypes as string[]).join(', ');
             const detectedLabel = getPhoneTypeName(detectedType);
             const base = `Allowed types mismatch${testRegion && testRegion !== 'ZZ' ? ` for region ${testRegion}` : ''}: expected one of: ${allowedList}; got ${detectedLabel}`;
@@ -315,6 +329,11 @@ export const handleStringValidation: ValidationHandler = (field: InputField): Fi
 
   const valueToValidate = stringData || '';
   const errors: FieldError[] = [];
+
+  // If field is not required and value is empty/null, skip validation entirely
+  if (!required && (stringData === null || stringData === undefined || stringData === '')) {
+    return errors;
+  }
 
   if (required && valueToValidate === '') {
     errors.push({ field: name, message: appendCustomErrorMessage(buildRequiredMessage(field), field) });
