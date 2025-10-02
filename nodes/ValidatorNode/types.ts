@@ -61,13 +61,16 @@ export interface InputField {
     oneOfValues?: string;
     regexPattern?: string;
     customErrorMessage?: string;
-    // Custom error composition controls
-    useCustomErrorMessage?: boolean;
-    customMessagePlacement?: 'append' | 'prepend' | 'replace';
 
     // String validator option fields (subset of validator.js options for usability)
     // Email options
     emailShowAdvanced?: boolean;
+    // URL options
+    urlShowAdvanced?: boolean;
+    // FQDN options
+    fqdnShowAdvanced?: boolean;
+    // Phone rewrite options
+    phoneShowAdvancedRewrite?: boolean;
     emailAllowDisplayName?: boolean;
     emailRequireDisplayName?: boolean;
     emailAllowUtf8LocalPart?: boolean;

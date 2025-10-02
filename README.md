@@ -1,6 +1,6 @@
 # n8n-nodes-input-validator
 
-The **n8n-nodes-input-validator** validates input data in n8n against configurable criteria. It supports strings, numbers, booleans, dates, enums, and international phone numbers (via google-libphonenumber), with options that balance strictness and flexibility.
+The **n8n-nodes-input-validator** validates and transforms input data in n8n against configurable criteria. It supports strings, numbers, booleans, dates, enums, and international phone numbers (via google-libphonenumber), with comprehensive options for validation strictness and error handling.
 
 ## Install
 
@@ -12,162 +12,373 @@ The **n8n-nodes-input-validator** validates input data in n8n against configurab
 
 ## Features
 
-- **String Validation**: Validate strings against many formats (email, URL, UUID, regex, IP, postal code, JWT, FQDN, ISBN, JSON, hash, colour, currency, semver, slug, port, MAC, MIME type, crypto addresses, VAT, tax ID, time, ISO8601/RFC3339, etc.).
-- **Phone Validation**: Validate international phone numbers using google-libphonenumber with region, mode and type filters.
-- **Number Validation**: Validate numbers using min, max, range, or one-of list.
-- **Boolean Validation**: Validate boolean values.
-- **Date Validation**: Validate dates in ISO 8601 format.
-- **Enum Validation**: Validate values against a set of predefined options.
+- **String Validation**: Validate strings against 40+ formats with optional advanced controls
+- **Phone Validation**: Validate and optionally rewrite international phone numbers using google-libphonenumber with region, mode, type filters, and auto-realignment
+- **Number Validation**: Validate numbers using min, max, range, or one-of list constraints
+- **Boolean Validation**: Validate boolean values with required field support
+- **Date Validation**: Validate dates in ISO 8601 format
+- **Enum Validation**: Validate values against predefined options
+- **Custom Error Messages**: Optional field-level custom error messages with flexible placement (append/prepend/replace)
+- **Flexible Error Handling**: Continue, throw error, skip item, or set invalid fields to null/empty
+- **Phone Number Rewriting**: Format phone numbers to E.164, International, National, or RFC3966 formats with type realignment
 
 ### Supported String Formats
 
-Email, URL, UUID, Alphanumeric, Letters only, Numbers only, Integer, Credit card, Phone number (libphonenumber), Postal code, IP (any/IPv4/IPv6), MAC address, JWT, Base64, Hex colour, Hex string, ISBN (10/13), Strong password, JSON, MongoId, FQDN, Port, SemVer, Slug, Currency, Lat/Long, Bitcoin address, Ethereum address, BIC, IBAN, VAT, Tax ID, MIME type, Hash (MD5/SHA*/etc.), IP range (CIDR), ISO 8601 date, Mailto URI, MD5, RFC 3339 date, Time, and Custom regex.
+**Common Formats**: Email, URL, UUID, Alphanumeric, Alpha (letters only), Numeric, Integer, Phone number, Postal code, Credit card
+
+**Network & Technical**: IP Address (IPv4/IPv6), IPv4 Address, IPv6 Address, IP Range (CIDR), MAC Address, Port, FQDN, MIME Type
+
+**Data Formats**: JSON, JWT, Base64, Hexadecimal, Hex Colour, Hash (MD5/SHA1/SHA256/SHA384/SHA512/etc.), MongoDB ObjectId
+
+**Web & URLs**: URL, URL Slug, Mailto URI
+
+**Financial & Business**: Currency, Credit Card, BIC/SWIFT, IBAN, VAT Number, Tax ID, Bitcoin Address, Ethereum Address
+
+**Date & Time**: ISO 8601, RFC 3339, Time
+
+**Identifiers**: ISBN (10/13), UUID (v3/v4/v5), Semantic Version
+
+**Coordinates**: Latitude/Longitude
+
+**Security**: Strong Password, Custom Regex Pattern
 
 ## Usage
 
-### Properties
+### Node Configuration
 
-The node allows you to configure multiple input fields with various validation criteria. Each input field has the following properties:
+The node operates in **Output Items** mode, validating data and outputting items with an `isValid` property and optional `errors` array.
 
-- **Node Mode**: Choose how the node outputs results:
-  - **Output Validation Results**: Outputs a JSON summary per item: `{ isValid, errors?, phoneDetails? }`. Use this to inspect validation without stopping the workflow.
-  - **Output Items**: For valid items, passes the original item through unchanged; for invalid items, throws a node error summarising failures.
-- **Include Phone Details**: When in "Output Validation Results" mode, include enriched details for phone fields (E.164, national/international formats, type, region).
-- **Validation Type**: The type of validation to perform (`string`, `number`, `boolean`, `date`, `enum`).
-- **Required**: Whether the input field is required.
-- **String Data**: Data to be validated as a string.
-- **String Format**: Choose from many formats (see list above) or match a custom regex pattern.
-- **Number Data**: Data to be validated as a number.
-- **Number Validation Type**: Choose `min`, `max`, `range`, or `oneOf`.
-- **Boolean Data**: Data to be validated as a boolean.
-- **Date Data**: Data to be validated as a date.
-- **Enum Values**: Comma-separated list of valid enum values.
-- **Pattern**: Regex pattern for string validation.
-- **Min**: Minimum value for number validation.
-- **Max**: Maximum value for number validation.
-- **One Of Values**: Comma-separated list of allowed numbers for `oneOf`.
+#### Global Settings
 
-### Example Configuration
+- **Output only isValid**: When enabled, outputs only `isValid` and `errors` properties (excludes item data)
+- **Enable Phone Rewrite**: Enable phone number formatting/rewriting with google-libphonenumber
+- **On Invalid**: Choose how to handle validation failures:
+  - **Continue (default)**: Pass through original data with validation errors included
+  - **Throw Error**: Fail the entire item when any validation fails
+  - **Skip Item**: Exclude the item from output when validation fails
+  - **Set Invalid Fields to Null**: Set fields that fail validation to null
+  - **Set Invalid Fields to Empty**: Set fields that fail validation to empty values (empty string, 0, false, etc.)
 
-Here's an example of how to configure the Input Validator:
+#### Phone Rewrite Options (when enabled)
 
-1. **String Validation**
-    - **Validation Type**: `string`
-    - **Required**: `true`
-    - **String Data**: `example@example.com`
-    - **String Format**: `email`
+- **Pass Through All Incoming Fields**: Keep all original item fields and add formatted outputs
+- **Do Not Output Phone Rewrite Details**: Omit the `phoneRewrites` summary array from output
+- **Auto realign mismatched types**: Automatically swap phone values between fields when types don't match expected types
+- **Allow using same number in multiple fields**: Allow one detected number to be used for multiple output fields
 
-2. **Number Validation**
-    - **Validation Type**: `number`
-    - **Required**: `true`
-    - **Number Data**: `10`
-    - **Min**: `2`
-    - **Max**: `100`
+### Field Configuration
 
-3. **Boolean Validation**
-    - **Validation Type**: `boolean`
-    - **Required**: `true`
-    - **Boolean Data**: `true`
+Each validation field supports the following properties:
 
-4. **Date Validation**
-    - **Validation Type**: `date`
-    - **Required**: `true`
-    - **Date Data**: `2024-06-05`
+#### Common Properties (All Types)
 
-5. **Enum Validation**
-    - **Validation Type**: `enum`
-    - **Required**: `true`
-    - **String Data**: `option1`
-    - **Enum Values**: `option1, option2, option3`
+- **Validation Name**: Name identifier for the validation field
+- **Validation Type**: Choose from `string`, `number`, `boolean`, `date`, or `enum`
+- **Required**: Whether the input field is required (applies to all types)
+- **Custom Error Message**: Optional custom error message with prefix syntax:
+  - Plain text = appends to standard message
+  - `!text` = replaces standard message
+  - `^text` = prepends to standard message
 
-### Validation Logic
+#### String Validation
 
-The validation logic is implemented as follows:
+- **String Data**: The string value to validate
+- **String Format**: Choose from 40+ formats (see Supported String Formats above)
+- **Regex Pattern**: Custom regex pattern (when format is "Custom Regex Pattern")
 
-- **String Validation**: Checks if the string matches the specified format (email, URL, UUID, pattern) and if it is not empty when required.
-- **Number Validation**: Checks if the number is within the specified range (min and max) and if it is a valid number.
-- **Boolean Validation**: Checks if the value is a valid boolean and if it is not empty when required.
-- **Date Validation**: Checks if the date is in ISO 8601 format and if it is not empty when required.
-- **Enum Validation**: Checks if the value is one of the predefined enum options and if it is not empty when required.
+**Format-Specific Options** (collapsed by default):
+- **Email**: Advanced options toggle for display name, UTF8, TLD requirements, IP domains, max length, domain-specific validation
+- **URL**: Require protocol/TLD (visible), advanced options for underscores, trailing dots, fragments, query components, auth, length
+- **FQDN**: Require TLD (visible), advanced options for underscores, trailing dots, numeric TLD, wildcards
+- **Phone Number**: Region, validation mode, expected types, on-invalid behavior, rewrite options
+- **UUID/ISBN**: Version selection
+- **Postal Code/VAT/Tax ID**: Locale/country code selection
+- **Hash**: Algorithm selection (MD4/MD5/SHA1/SHA256/etc.)
+- **Strong Password**: Min length, min lowercase/uppercase/numbers/symbols, return score option
+- **Currency**: Symbol, require symbol, negatives, space after symbol, decimal requirements
+- **ISO 8601/Time**: Strict mode, separator mode, hour format options
 
-### Error Handling
+#### Number Validation
 
-The node returns a JSON object with the following structure:
+- **Number Data**: The number value to validate
+- **Number Validation Type**: Choose validation constraint:
+  - **None**: No additional constraints
+  - **Minimum**: Must be ≥ min value
+  - **Maximum**: Must be ≤ max value
+  - **Range**: Must be between min and max values
+  - **One Of**: Must match one of the specified values
+- **Min Value**: Minimum value (for min/range validation)
+- **Max Value**: Maximum value (for max/range validation)
+- **One Of Values**: Comma-separated list of valid numbers (for oneOf validation)
+
+#### Boolean Validation
+
+- **Boolean Data**: The boolean value to validate
+
+#### Date Validation
+
+- **Date Data**: The date value to validate (ISO 8601 format expected)
+
+#### Enum Validation
+
+- **String Data**: The value to validate against enum options
+- **Enum Values**: Comma-separated list of valid enum values
+
+### Example Configurations
+
+#### Basic Email Validation
+```javascript
+{
+  "Validation Name": "customerEmail",
+  "Validation Type": "string",
+  "String Data": "{{ $json.email }}",
+  "String Format": "email",
+  "Required": true,
+  "Custom Error Message": "Please provide a valid business email address"
+}
+```
+
+#### Phone Validation with Rewrite
+```javascript
+{
+  "Validation Name": "mobilePhone",
+  "Validation Type": "string",
+  "String Data": "{{ $json.phone }}",
+  "String Format": "Phone Number",
+  "Phone Region": "AU",
+  "Validation Mode": "Valid (Strict)",
+  "Expected Type(s)": ["MOBILE"],
+  "Enable Phone Rewrite": true,
+  "Output Field Name": "formattedMobile",
+  "Rewrite Format": "E.164"
+}
+```
+
+#### Number Range Validation
+```javascript
+{
+  "Validation Name": "quantity",
+  "Validation Type": "number",
+  "Number Data": "{{ $json.qty }}",
+  "Number Validation Type": "Range",
+  "Min Value": 1,
+  "Max Value": 100,
+  "Required": true,
+  "Custom Error Message": "^Quantity out of range."
+}
+```
+
+#### Enum Validation
+```javascript
+{
+  "Validation Name": "status",
+  "Validation Type": "enum",
+  "String Data": "{{ $json.status }}",
+  "Enum Values": "pending, approved, rejected",
+  "Required": true
+}
+```
+
+### Output Structure
+
+By default, the node augments each item with validation results:
 
 ```json
 {
+  "originalField1": "value1",
+  "originalField2": "value2",
     "isValid": true,
     "errors": [
         {
-            "field": "field_name",
+      "field": "fieldName",
             "message": "Error message"
         }
     ]
 }
 ```
 
-- **isValid**: Indicates whether all validations passed.
-- **errors**: An array of error messages for failed validations.
+**Properties:**
+- **isValid**: Boolean indicating whether all validations passed
+- **errors**: Array of error objects for failed validations (only present when validation fails)
+  - **field**: Name of the field that failed validation
+  - **message**: Error message describing the validation failure
+  - **resolved**: (Optional) Boolean indicating if error was auto-resolved (e.g., phone realignment)
+  - **resolution**: (Optional) Description of how the error was resolved
 
-### Phone Validation (google-libphonenumber)
+**With `Output only isValid` enabled:**
+```json
+{
+  "isValid": false,
+  "errors": [...]
+}
+```
+(Original item data is excluded)
 
-When `String Format` is set to `Phone Number`, the node uses google-libphonenumber to parse and validate:
+### Phone Validation & Rewriting
 
-- Region: ISO 3166-1 alpha-2 (e.g. AU, US, GB). Defaults to `ZZ` for unknown.
-- Validation Modes: `Valid (Strict)`, `Possible (Lenient)`, `Valid For Region`, `Possible For Type`.
-- Allowed Types: constrain accepted types (e.g. `MOBILE`). Optionally treat `FIXED_LINE_OR_MOBILE` as mobile.
+When `String Format` is set to `Phone Number`, the node uses **google-libphonenumber** for robust international phone validation and formatting.
 
-If the node is in "Output Validation Results" mode, enabling `Include Phone Details` will add a `phoneDetails` array with enriched information per phone field:
+#### Validation Options
+
+- **Phone Region**: ISO 3166-1 alpha-2 country code (e.g., AU, US, GB, ZZ for unknown/international)
+- **Validation Mode**: 
+  - **Valid (Strict)**: Full validity check (isValidNumber)
+  - **Possible (Lenient)**: Possibility check only (isPossibleNumber)
+  - **Valid For Region**: Validity within specified region (isValidNumberForRegion)
+  - **Possible For Type**: Possibility check constrained to selected types
+- **Expected Type(s)**: Constrain accepted phone number types:
+  - FIXED_LINE, MOBILE, FIXED_LINE_OR_MOBILE, TOLL_FREE, PREMIUM_RATE, SHARED_COST, VOIP, PERSONAL_NUMBER, PAGER, UAN, VOICEMAIL, UNKNOWN
+- **Treat Fixed-Line-or-Mobile as Mobile**: When enabled (default), treats FIXED_LINE_OR_MOBILE as satisfying MOBILE requirement
+- **On Invalid** (field-level): Override global behavior for this specific phone field:
+  - Use Global Setting (default)
+  - Leave As Is
+  - Empty String
+  - Null
+  - Throw Error (fail item)
+
+#### Phone Rewrite/Formatting
+
+Enable **Enable Phone Rewrite** at the node level, then enable **Enable Phone Rewrite** for individual phone fields.
+
+**Per-Field Rewrite Options:**
+- **Output Field Name**: Destination property name (defaults to `<name>Formatted`)
+- **Rewrite Format**: 
+  - **E.164**: `+61412345678` (recommended for databases/APIs)
+  - **INTERNATIONAL**: `+61 412 345 678` (human-readable international)
+  - **NATIONAL**: `0412 345 678` (local format)
+  - **RFC3966**: `tel:+61-412-345-678` (tel: URI scheme)
+  
+**Advanced Rewrite Options** (collapsed by default):
+- **Fallback Types**: Alternative types to try during auto-realignment
+- **Keep Extension**: Preserve phone extensions (default: true)
+- **Digit Separator**: Space, Hyphen, or Custom separator for INTERNATIONAL/NATIONAL formats
+- **Custom Separator**: Custom separator string when Digit Separator is set to Custom
+
+**Global Rewrite Options:**
+- **Pass Through All Incoming Fields**: Keep original item data (default: true)
+- **Do Not Output Phone Rewrite Details**: Omit `phoneRewrites` summary array (default: false)
+- **Auto realign mismatched types**: Automatically swap values between phone fields when detected type doesn't match expected type (default: true)
+- **Allow using same number in multiple fields**: Allow duplicate assignments during realignment (default: true)
+
+#### Phone Rewrite Output
+
+When phone rewrite is enabled, the node adds formatted phone numbers to the item:
 
 ```json
 {
-  "isValid": true,
-  "errors": [],
-  "phoneDetails": [
+  "name": "John Smith",
+  "mobile": "0412 345 678",
+  "mobileFormatted": "+61412345678",
+  "phoneRewrites": [
     {
-      "name": "Customer Phone",
-      "e164": "+61412345678",
-      "national": "0412 345 678",
-      "international": "+61 412 345 678",
+      "name": "mobile",
+      "original": "0412 345 678",
+      "outputProperty": "mobileFormatted",
+      "formatted": "+61412345678",
+      "format": "E164",
       "region": "AU",
       "type": "MOBILE",
       "valid": true,
-      "possible": true
+      "possible": true,
+      "expectedTypes": ["MOBILE"],
+      "expectedTypeMatch": true
+    }
+  ],
+  "isValid": true
+}
+```
+
+**Auto-Realignment Example:**
+
+If two phone fields have mismatched types (e.g., mobile number in landline field), the node can automatically swap them:
+
+```json
+{
+  "phoneRewrites": [
+    {
+      "name": "landline",
+      "correctionMade": true,
+      "correctionSource": "mobile",
+      "formatted": "+61383214567"
+    },
+    {
+      "name": "mobile", 
+      "correctionMade": true,
+      "correctionSource": "landline",
+      "formatted": "+61412345678"
     }
   ]
 }
 ```
 
-### Phone Rewrite/Format Mode
+## Advanced Features
 
-Set `Node Mode` to `Rewrite/Format Phone Numbers` to standardise phone numbers using google-libphonenumber. For each input configured with `Validation Type: String` and `String Format: Phone Number`, the node will format the provided value and add it onto the item under the configured output property.
+### Custom Error Messages
 
-- Options (per phone field):
-  - `Rewrite Format` (default E.164): E.164, INTERNATIONAL, NATIONAL, RFC3966
-  - `On Invalid` (default Leave As Is): leave-as-is, empty, null, error
-  - `Keep Extension` (default true): when false, strips extension from the formatted output
-  - `Output Property` (default `<name>Formatted`): property name to write result into
-  - Respects `Phone Region` and custom region for parsing
+Use the **Custom Error Message** field on any validation field to provide context-specific error messages:
 
-- Output:
-  - Augments each item with the formatted value at `Output Property`
-  - Adds a `phoneRewrites` summary array when in rewrite mode with details (original, formatted, format, region, type, valid, possible, error)
+- **Plain text** (appends): `"This value is required for processing"` 
+  - Output: `"Invalid email address. This value is required for processing"`
+- **`!` prefix** (replaces): `"!Email must be from approved domain"`
+  - Output: `"Email must be from approved domain"`
+- **`^` prefix** (prepends): `"^Critical validation error:"`
+  - Output: `"Critical validation error: Invalid email address."`
 
-This mode uses the same library and parsing rules as validation and is designed for reliable normalisation for downstream systems.
+### Progressive Disclosure UI
+
+The node uses a progressive disclosure pattern to reduce UI clutter:
+
+- **Email, URL, FQDN validation**: Common options visible by default, advanced options behind `⚙️ Advanced Options` toggle
+- **Phone rewrite**: Basic rewrite options visible, advanced separator/extension/fallback options collapsed
+- **Result**: ~70% fewer visible properties for typical use cases, with full power-user control available when needed
+
+### Nested Field Support
+
+All validation fields support dot notation for nested object paths:
+
+```javascript
+{
+  "Validation Name": "user.profile.email",
+  "String Data": "{{ $json.user.profile.email }}",
+  "String Format": "email"
+}
+```
+
+The validated/rewritten value will be written back to the nested path in the output.
 
 ## Development
 
 ### Setup
 
-1. Clone the repository.
+1. Clone the repository:
+    ```sh
+    git clone https://github.com/yourusername/n8n-nodes-input-validator.git
+    cd n8n-nodes-input-validator
+    ```
+
 2. Install dependencies:
     ```sh
     npm install
     ```
+
 3. Build the project:
     ```sh
     npm run build
     ```
+
+4. Link to n8n for local development:
+    ```sh
+    npm link
+    cd ~/.n8n/nodes
+    npm link n8n-nodes-input-validator
+    ```
+
+### Testing
+
+The node includes comprehensive validation logic using:
+- **validator.js** for string format validation
+- **google-libphonenumber** for international phone number validation and formatting
+- TypeScript for type safety
 
 ## Attribution
 

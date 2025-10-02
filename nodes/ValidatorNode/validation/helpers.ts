@@ -3,29 +3,30 @@
 import { InputField } from '../types';
 
 export function appendCustomErrorMessage(baseMessage: string, field?: InputField): string {
-  const useCustom = field?.useCustomErrorMessage === true;
   const custom = (field?.customErrorMessage || '').trim();
-  if (!useCustom || !custom) {
+  if (!custom) {
     return baseMessage;
-  }
-
-  const placement = field?.customMessagePlacement || 'append';
-
-  if (placement === 'replace') {
-    return custom;
   }
 
   // Always use sentence logic (no pipe separators)
   const ensureSentence = (text: string) => /[.!?]\s*$/.test(text) ? text.trim() : `${text.trim()}.`;
 
-  let composed: string;
-  if (placement === 'prepend') {
-    composed = `${ensureSentence(custom)} ${baseMessage.trim()}`;
+  // Parse prefix indicators:
+  // ! = replace standard message
+  // ^ = prepend to standard message
+  // (no prefix) = append to standard message
+  if (custom.startsWith('!')) {
+    // Replace: return only custom message (remove the ! prefix)
+    const customText = custom.substring(1).trim();
+    return customText;
+  } else if (custom.startsWith('^')) {
+    // Prepend: custom message first, then standard message
+    const customText = custom.substring(1).trim();
+    return `${ensureSentence(customText)} ${baseMessage.trim()}`;
   } else {
-    composed = `${ensureSentence(baseMessage)} ${custom.trim()}`;
+    // Append (default): standard message first, then custom message
+    return `${ensureSentence(baseMessage)} ${custom.trim()}`;
   }
-
-  return composed;
 }
 
 // Phone utilities

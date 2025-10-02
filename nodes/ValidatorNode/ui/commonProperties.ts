@@ -3,46 +3,16 @@ import { INodeProperties } from 'n8n-workflow';
 export const commonProperties: INodeProperties[] = [
 
   {
-    displayName: 'Use Custom Error Message',
-    name: 'useCustomErrorMessage',
-    type: 'boolean',
-    default: false,
-    description: 'Enable to use a custom error message for this field',
-    displayOptions: {
-      show: {
-        validationType: ['string', 'number', 'boolean', 'date', 'enum'],
-      },
-    },
-  },
-  {
-    displayName: 'Custom Error Message Text',
+    displayName: 'Custom Error Message',
     name: 'customErrorMessage',
     type: 'string',
     default: '',
-    placeholder: 'Enter custom error message',
-    description: 'The custom message to include when validation fails',
+    placeholder: 'e.g., Please check this field',
+    description: 'Optional custom error message. Prefix with "!" to replace standard message, "^" to prepend. Plain text appends to standard message.',
+    hint: 'Leave empty for standard message only. Plain text = append, !text = replace, ^text = prepend',
     displayOptions: {
       show: {
         validationType: ['string', 'number', 'boolean', 'date', 'enum'],
-        useCustomErrorMessage: [true],
-      },
-    },
-  },
-  {
-    displayName: 'Custom Message Placement',
-    name: 'customMessagePlacement',
-    type: 'options',
-    options: [
-      { name: 'Append (default)', value: 'append' },
-      { name: 'Prepend', value: 'prepend' },
-      { name: 'Replace Standard', value: 'replace' },
-    ],
-    default: 'append',
-    description: 'How to compose the custom message with the standard message',
-    displayOptions: {
-      show: {
-        validationType: ['string', 'number', 'boolean', 'date', 'enum'],
-        useCustomErrorMessage: [true],
       },
     },
   },
