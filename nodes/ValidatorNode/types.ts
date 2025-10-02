@@ -67,6 +67,7 @@ export interface InputField {
 
     // String validator option fields (subset of validator.js options for usability)
     // Email options
+    emailShowAdvanced?: boolean;
     emailAllowDisplayName?: boolean;
     emailRequireDisplayName?: boolean;
     emailAllowUtf8LocalPart?: boolean;
@@ -183,21 +184,26 @@ export interface InputField {
      * Enabled by default to behave intuitively for common mobile-only validations.
      */
     phoneTreatFixedLineOrMobileAsMobile?: boolean;
-
-    // Phone rewrite/format options (used when node mode is rewrite-phone)
     /**
-     * Desired output format when rewriting phone numbers.
-     * Mirrors google-libphonenumber PhoneNumberFormat enum.
-     */
-    phoneRewriteFormat?: 'E164' | 'INTERNATIONAL' | 'NATIONAL' | 'RFC3966';
-    /**
-     * Behaviour when the number cannot be parsed/validated for formatting.
+     * Behaviour when the phone number fails validation.
+     * - use-global: use the node-level On Invalid setting
      * - leave-as-is: keep original input
      * - empty: set to empty string
      * - null: set to null
      * - error: throw and fail the item
      */
-    phoneRewriteOnInvalid?: 'leave-as-is' | 'empty' | 'null' | 'error';
+    phoneOnInvalid?: 'use-global' | 'leave-as-is' | 'empty' | 'null' | 'error';
+
+    // Phone rewrite/format options used when phone rewrite is enabled in output-items mode
+    /**
+     * Per-field toggle to enable phone rewriting for this specific field.
+     */
+    phoneEnableRewrite?: boolean;
+    /**
+     * Desired output format when rewriting phone numbers.
+     * Mirrors google-libphonenumber PhoneNumberFormat enum.
+     */
+    phoneRewriteFormat?: 'E164' | 'INTERNATIONAL' | 'NATIONAL' | 'RFC3966';
     /**
      * Try to preserve and include extensions when formatting (where applicable, e.g. RFC3966).
      */
@@ -214,6 +220,23 @@ export interface InputField {
      * Custom separator string when mode is 'custom'. Defaults to space when empty.
      */
     phoneRewriteSeparatorCustom?: string;
+    /**
+     * Fallback phone types to use when realigning if expected types don't match.
+     */
+    phoneRewriteFallbackTypes?: Array<
+      | 'FIXED_LINE'
+      | 'MOBILE'
+      | 'FIXED_LINE_OR_MOBILE'
+      | 'TOLL_FREE'
+      | 'PREMIUM_RATE'
+      | 'SHARED_COST'
+      | 'VOIP'
+      | 'PERSONAL_NUMBER'
+      | 'PAGER'
+      | 'UAN'
+      | 'VOICEMAIL'
+      | 'UNKNOWN'
+    >;
 
     // Custom fallback values for picklists
     phoneRegionCustom?: string;

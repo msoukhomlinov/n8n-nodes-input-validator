@@ -8,7 +8,7 @@ import {
 } from 'n8n-workflow';
 import './validation'; // ensure handlers are registered
 import { validateInputFields } from './validateInput';
-import { InputField, PhoneRewriteInput } from './types';
+import { InputField } from './types';
 import { inputFieldValues, phoneRewriteValues } from './ui';
 
 export class ValidatorNode implements INodeType {
@@ -34,11 +34,6 @@ export class ValidatorNode implements INodeType {
             name: 'Output Items',
             value: 'output-items',
             description: 'Node will output items from input with isValid property included',
-          },
-          {
-            name: 'ReWrite/Format phone numbers',
-            value: 'rewrite-phone',
-            description: 'Format configured phone inputs using google-libphonenumber',
           },
         ],
         default: 'output-items',
@@ -72,6 +67,18 @@ export class ValidatorNode implements INodeType {
         type: 'boolean',
         default: false,
         description: 'When enabled, only output isValid and errors without outputting item data',
+        displayOptions: {
+          show: {
+            nodeMode: ['output-items'],
+          },
+        },
+      },
+      {
+        displayName: 'Enable Phone Rewrite',
+        name: 'enablePhoneRewrite',
+        type: 'boolean',
+        default: false,
+        description: 'When enabled, format phone numbers using google-libphonenumber with optional type realignment',
         displayOptions: {
           show: {
             nodeMode: ['output-items'],
@@ -118,32 +125,6 @@ export class ValidatorNode implements INodeType {
           },
         },
       },
-      // Pass-through toggle for rewrite-phone mode
-      {
-        displayName: 'Pass Through All Incoming Fields',
-        name: 'rewritePhonePassThrough',
-        type: 'boolean',
-        default: true,
-        description: 'When enabled, keep all original item fields and add formatted outputs',
-        displayOptions: {
-          show: {
-            nodeMode: ['rewrite-phone'],
-          },
-        },
-      },
-      // When enabled, do not include phoneRewrites summary details in the output
-      {
-        displayName: 'Do Not Output Phone Rewrite Details',
-        name: 'omitPhoneRewriteDetails',
-        type: 'boolean',
-        default: false,
-        description: 'When enabled, the phoneRewrites summary array will be omitted from output',
-        displayOptions: {
-          show: {
-            nodeMode: ['rewrite-phone'],
-          },
-        },
-      },
       // Phone rewrite inputs and related options (appended at end for stability)
       ...phoneRewriteValues,
     ],
@@ -152,8 +133,288 @@ export class ValidatorNode implements INodeType {
   async execute(this: IExecuteFunctions): Promise<INodeExecutionData[][]> {
     const items = this.getInputData();
 
-    const outputMode = this.getNodeParameter('nodeMode', 0);
+    const nodeMode = this.getNodeParameter('nodeMode', 0) as string;
+    if (nodeMode !== 'output-items') {
+      throw new NodeOperationError(this.getNode(), `Invalid node mode: ${nodeMode}. Supported mode is 'output-items'.`);
+    }
+
     const outputOnlyIsValid = this.getNodeParameter('outputOnlyIsValid', 0, false) as boolean;
+
+    const runPhoneRewrite = async (
+      item: INodeExecutionData,
+      itemIndex: number,
+      inputFields: InputField[],
+    ): Promise<{
+      allValid: boolean;
+      errors: Array<{ input?: string; error: string }>;
+      rewrites: Array<Record<string, unknown>>;
+      omitRewriteDetails: boolean;
+    }> => {
+      const passThrough = this.getNodeParameter('phoneRewritePassThrough', itemIndex, true) as boolean;
+      const omitRewriteDetails = this.getNodeParameter('omitPhoneRewriteDetails', itemIndex, false) as boolean;
+      const autoRealign = this.getNodeParameter('autoRealignMismatchedTypes', itemIndex, true) as boolean;
+      const allowDuplicateAssignment = this.getNodeParameter('allowDuplicateAssignment', itemIndex, true) as boolean;
+
+      const { rewritePhone, isPhoneTypeAllowed } = await import('./validation/helpers');
+
+      const acceptsExpected = (expected: string[] | undefined, actual: string | undefined): boolean => {
+        if (!expected || expected.length === 0 || !actual) return false;
+        return isPhoneTypeAllowed(expected, (actual as unknown) as number, true) || expected.includes(actual);
+      };
+
+      const rewrites: Array<Record<string, unknown>> = [];
+      const written: Record<string, unknown> = {};
+      const preWrite: Array<{
+        index: number;
+        outputProp: string;
+        originalValue: string;
+        result: {
+          formatted?: string;
+          format: 'E164' | 'INTERNATIONAL' | 'NATIONAL' | 'RFC3966';
+          region?: string;
+          type?: string;
+          valid: boolean;
+          possible: boolean;
+          error?: string;
+        };
+        expectedTypes?: string[];
+        fallbackTypes?: string[];
+        expectedTypeMatch?: boolean;
+        field: InputField;
+      }> = [];
+      const errors: Array<{ input?: string; error: string }> = [];
+      let allValid = true;
+
+      const setNestedValue = (obj: Record<string, unknown>, path: string, value: unknown): void => {
+        const keys = path.split('.');
+        let current = obj;
+        for (let i = 0; i < keys.length - 1; i++) {
+          const key = keys[i];
+          if (!(key in current) || typeof current[key] !== 'object' || current[key] === null) {
+            current[key] = {};
+          }
+          current = current[key] as Record<string, unknown>;
+        }
+        current[keys[keys.length - 1]] = value;
+      };
+
+      const phoneValidationFields = inputFields.filter(field =>
+        field.validationType === 'string' &&
+        field.stringFormat === 'mobilePhone' &&
+        (field as unknown as { phoneEnableRewrite?: boolean }).phoneEnableRewrite === true
+      );
+
+      if (phoneValidationFields.length > 0) {
+        for (let f = 0; f < phoneValidationFields.length; f++) {
+          const field = phoneValidationFields[f];
+          const originalValue = field.stringData ?? '';
+
+          const result = rewritePhone(originalValue, field);
+
+          let outputProp = field.phoneRewriteOutputProperty?.trim();
+          if (!outputProp) {
+            outputProp = `${field.name}Formatted`;
+          }
+
+          const fieldOnInvalid = field.phoneOnInvalid || 'use-global';
+          if (result.error && fieldOnInvalid === 'error') {
+            throw new NodeOperationError(this.getNode(), `Phone rewrite failed for '${field.name}': ${result.error}`);
+          }
+
+          preWrite.push({
+            index: f,
+            outputProp,
+            originalValue,
+            result,
+            expectedTypes: (field.phoneAllowedTypes ?? []) as string[] | undefined,
+            fallbackTypes: (field as unknown as { phoneRewriteFallbackTypes?: string[] }).phoneRewriteFallbackTypes,
+            field,
+          });
+
+          const summary: Record<string, unknown> = {
+            name: outputProp,
+            original: originalValue,
+            outputProperty: outputProp,
+            formatted: result.formatted,
+            format: result.format,
+            region: result.region,
+            type: result.type,
+            valid: result.valid,
+            possible: result.possible,
+            error: result.error,
+          } as Record<string, unknown>;
+
+          if (Array.isArray(field.phoneAllowedTypes) && field.phoneAllowedTypes.length) {
+            summary.expectedTypes = field.phoneAllowedTypes;
+            summary.expectedTypeMatch = acceptsExpected(field.phoneAllowedTypes as string[], result.type as string | undefined);
+          }
+
+          const fallbackTypes = (field as unknown as { phoneRewriteFallbackTypes?: string[] }).phoneRewriteFallbackTypes;
+          if (Array.isArray(fallbackTypes) && fallbackTypes.length) {
+            summary.fallbackTypes = fallbackTypes;
+          }
+
+          rewrites.push(summary);
+
+          if (!result.valid || result.error) {
+            allValid = false;
+            if (result.error) {
+              errors.push({ input: outputProp, error: result.error });
+            }
+          }
+        }
+
+        if (autoRealign) {
+          const sourceUsed: Record<string, boolean> = {};
+          for (let i = 0; i < preWrite.length; i++) {
+            const target = preWrite[i];
+            const targetSummary = rewrites[i];
+            const expected = target.expectedTypes;
+            const fallback = target.fallbackTypes;
+            if (!targetSummary || !expected || expected.length === 0) continue;
+            const alreadyAligned = targetSummary.expectedTypeMatch === true;
+            if (alreadyAligned && allowDuplicateAssignment) continue;
+            if (targetSummary.expectedTypeMatch === false || (!allowDuplicateAssignment && !(target.outputProp in written))) {
+              for (let s = 0; s < preWrite.length; s++) {
+                const source = preWrite[s];
+                if (s === i) continue;
+                const sourceType = source.result.type as string | undefined;
+                if (!sourceType) continue;
+                const sourceValue = source.result.formatted ?? source.originalValue;
+                if (!allowDuplicateAssignment && sourceUsed[source.outputProp]) continue;
+                const matchesExpected = acceptsExpected(expected, sourceType);
+                const matchesFallback = Array.isArray(fallback) && fallback.length > 0 && acceptsExpected(fallback, sourceType);
+                if (matchesExpected || matchesFallback) {
+                  if (allowDuplicateAssignment || !(target.outputProp in written)) {
+                    written[target.outputProp] = sourceValue;
+                    targetSummary.correctionMade = true;
+                    targetSummary.correctionSource = source.outputProp;
+                    if (!matchesExpected && matchesFallback) {
+                      targetSummary.fallbackUsed = true;
+                    }
+                    sourceUsed[source.outputProp] = true;
+                  }
+                  break;
+                }
+              }
+            }
+          }
+
+          // Recalculate validity after realignment: entries with successful corrections should be valid
+          allValid = true;
+          errors.length = 0;
+          for (let i = 0; i < rewrites.length; i++) {
+            const summary = rewrites[i];
+            const wasRealigned = summary.correctionMade === true;
+            if (wasRealigned) {
+              // Successfully realigned - this is now valid
+              continue;
+            }
+            // Not realigned - check original validity
+            if (!summary.valid || summary.error) {
+              allValid = false;
+              if (summary.error) {
+                errors.push({ input: summary.outputProperty as string, error: summary.error as string });
+              }
+            }
+          }
+        }
+
+        for (let k = 0; k < preWrite.length; k++) {
+          const staged = preWrite[k];
+          if (staged.outputProp in written) continue;
+          const res = staged.result;
+          let valueToWrite: unknown = res.formatted;
+          const mismatched = rewrites[k]?.expectedTypeMatch === false;
+          const notRealigned = !(preWrite[k].outputProp in written);
+          const fieldOnInvalid = staged.field.phoneOnInvalid || 'use-global';
+          if ((res.error || (mismatched && notRealigned)) && fieldOnInvalid !== undefined && fieldOnInvalid !== 'use-global') {
+            switch (fieldOnInvalid) {
+              case 'empty':
+                valueToWrite = '';
+                break;
+              case 'null':
+                valueToWrite = null;
+                break;
+              case 'leave-as-is':
+              default:
+                valueToWrite = staged.originalValue;
+                break;
+            }
+          }
+          written[staged.outputProp] = valueToWrite as unknown;
+        }
+
+        const targetObj = passThrough ? JSON.parse(JSON.stringify(item.json)) : {};
+        for (const [key, value] of Object.entries(written)) {
+          if (key.includes('.')) {
+            setNestedValue(targetObj as Record<string, unknown>, key, value);
+          } else {
+            (targetObj as Record<string, unknown>)[key] = value;
+          }
+        }
+        item.json = targetObj as IDataObject;
+      } else {
+        for (let f = 0; f < inputFields.length; f++) {
+          const field = inputFields[f];
+          if (field.validationType === 'string' && field.stringFormat === 'mobilePhone' && field.stringData) {
+            const { rewritePhone: rewritePhoneLegacy } = await import('./validation/helpers');
+            const result = rewritePhoneLegacy(field.stringData, field);
+            const outputProp = (field.phoneRewriteOutputProperty && field.phoneRewriteOutputProperty.trim())
+              ? field.phoneRewriteOutputProperty.trim()
+              : `${field.name}Formatted`;
+
+            const fieldOnInvalid = field.phoneOnInvalid || 'use-global';
+            if (result.error && fieldOnInvalid === 'error') {
+              throw new NodeOperationError(this.getNode(), `Phone rewrite failed for '${field.name}': ${result.error}`);
+            }
+
+            let valueToWrite: unknown = result.formatted;
+            if (!result.formatted && result.error && fieldOnInvalid !== 'use-global') {
+              switch (fieldOnInvalid) {
+                case 'empty':
+                  valueToWrite = '';
+                  break;
+                case 'null':
+                  valueToWrite = null;
+                  break;
+                case 'leave-as-is':
+                default:
+                  valueToWrite = field.stringData;
+                  break;
+              }
+            }
+
+            (item.json as Record<string, unknown>)[outputProp] = valueToWrite as unknown;
+
+            rewrites.push({
+              name: field.name,
+              original: field.stringData,
+              outputProperty: outputProp,
+              formatted: result.formatted,
+              format: result.format,
+              region: result.region,
+              type: result.type,
+              valid: result.valid,
+              possible: result.possible,
+              error: result.error,
+            } as Record<string, unknown>);
+
+            if (!result.valid || result.error) {
+              allValid = false;
+              if (result.error) errors.push({ input: field.name, error: result.error });
+            }
+          }
+        }
+      }
+
+      return {
+        allValid,
+        errors,
+        rewrites,
+        omitRewriteDetails,
+      };
+    };
 
     const returnData: INodeExecutionData[] = [];
     for (let itemIndex = 0; itemIndex < items.length; itemIndex++) {
@@ -164,322 +425,8 @@ export class ValidatorNode implements INodeType {
         [],
       ) as InputField[];
 
-      // Special handling for rewrite-phone mode: transform/augment item with formatted results
-      if (outputMode === 'rewrite-phone') {
-        // Try new mapping-based inputs first
-        const mappings = this.getNodeParameter('phoneRewriteInputs.phoneRewriteInputs', itemIndex, []) as PhoneRewriteInput[];
-        const mappingsRaw = this.getNodeParameter('phoneRewriteInputs.phoneRewriteInputs', itemIndex, [], { rawExpressions: true }) as Array<Record<string, unknown>>;
-        const passThrough = this.getNodeParameter('rewritePhonePassThrough', itemIndex, true) as boolean;
-        const omitRewriteDetails = this.getNodeParameter('omitPhoneRewriteDetails', itemIndex, false) as boolean;
+      const { errors: validationErrors } = validateInputFields(inputFields);
 
-        // Mode-level phone options reused in helper through a pseudo-field
-        const phoneRegion = this.getNodeParameter('phoneRegion', itemIndex, 'ZZ') as string;
-        const phoneRegionCustom = this.getNodeParameter('phoneRegionCustom', itemIndex, '') as string;
-        const phoneRewriteFormat = this.getNodeParameter('phoneRewriteFormat', itemIndex, 'E164') as 'E164' | 'INTERNATIONAL' | 'NATIONAL' | 'RFC3966';
-        const phoneRewriteOnInvalid = this.getNodeParameter('phoneRewriteOnInvalid', itemIndex, 'leave-as-is') as 'leave-as-is' | 'empty' | 'null' | 'error';
-        const autoRealign = this.getNodeParameter('autoRealignMismatchedTypes', itemIndex, true) as boolean;
-        const allowDuplicateAssignment = this.getNodeParameter('allowDuplicateAssignment', itemIndex, true) as boolean;
-        const phoneRewriteKeepExtension = this.getNodeParameter('phoneRewriteKeepExtension', itemIndex, true) as boolean;
-        const phoneRewriteSeparatorMode = this.getNodeParameter('phoneRewriteSeparatorMode', itemIndex, 'space') as 'space' | 'hyphen' | 'custom';
-        const phoneRewriteSeparatorCustom = this.getNodeParameter('phoneRewriteSeparatorCustom', itemIndex, '') as string;
-
-        const { rewritePhone, isPhoneTypeAllowed } = await import('./validation/helpers');
-
-        // Helper using central compatibility logic
-        const acceptsExpected = (expected: string[] | undefined, actual: string | undefined): boolean => {
-          if (!expected || expected.length === 0 || !actual) return false;
-          // Map actual label to enum-like acceptance using helper
-          // We simulate by passing detected label through isPhoneTypeAllowed with expected list
-          return isPhoneTypeAllowed(expected, (actual as unknown) as number, true) || expected.includes(actual);
-        };
-
-        const rewrites: Array<Record<string, unknown>> = [];
-        const written: Record<string, unknown> = {};
-        // Keep pre-write cache so we can perform swap correction before mutating item.json
-        const preWrite: Array<{
-          index: number;
-          outputProp: string;
-          originalValue: string;
-          result: {
-            formatted?: string;
-            format: 'E164' | 'INTERNATIONAL' | 'NATIONAL' | 'RFC3966';
-            region?: string;
-            type?: string;
-            valid: boolean;
-            possible: boolean;
-            error?: string;
-          };
-          expectedTypes?: string[];
-          fallbackTypes?: string[];
-          expectedTypeMatch?: boolean;
-        }> = [];
-        const errors: Array<{ input?: string; error: string }> = [];
-        let allValid = true;
-
-        // Helper to set nested values using dot notation
-        const setNestedValue = (obj: Record<string, unknown>, path: string, value: unknown): void => {
-          const keys = path.split('.');
-          let current = obj;
-          for (let i = 0; i < keys.length - 1; i++) {
-            const key = keys[i];
-            if (!(key in current) || typeof current[key] !== 'object' || current[key] === null) {
-              current[key] = {};
-            }
-            current = current[key] as Record<string, unknown>;
-          }
-          current[keys[keys.length - 1]] = value;
-        };
-
-        if (Array.isArray(mappings) && mappings.length > 0) {
-          for (let m = 0; m < mappings.length; m++) {
-            const mapping = mappings[m] || {} as PhoneRewriteInput;
-            const sourceExpr = mapping.source || '';
-            // Raw expression (if available) to derive original key
-            const rawSource = Array.isArray(mappingsRaw) && mappingsRaw[m] ? (mappingsRaw[m]['source'] as string) : undefined;
-            const originalValue = this.evaluateExpression(sourceExpr, itemIndex) as string;
-
-            const pseudoField: InputField = {
-              name: `phone${m + 1}`,
-              validationType: 'string',
-              required: false,
-              stringFormat: 'mobilePhone',
-              phoneRegion: phoneRegion,
-              phoneRegionCustom: phoneRegionCustom,
-              phoneRewriteFormat,
-              phoneRewriteOnInvalid,
-              phoneRewriteKeepExtension,
-              phoneRewriteSeparatorMode,
-              phoneRewriteSeparatorCustom,
-            } as unknown as InputField;
-
-            const result = rewritePhone(originalValue as string, pseudoField);
-
-            // Output property: use explicit outputFieldName, or extract full path from source
-            let outputProp = `phone${m + 1}`;
-            const explicitOutputName = mapping.outputFieldName?.trim();
-            if (explicitOutputName) {
-              // Use explicit output field name (supports dot notation)
-              outputProp = explicitOutputName;
-            } else {
-              // Auto-detect from source, preserving full path with dot notation
-              const extractPath = (expr: string): string | undefined => {
-                if (!expr) return undefined;
-                // Normalise wrappers like {{ }} or ={{ }}
-                let t = expr.trim();
-                t = t.replace(/^=\s*/, '');
-                t = t.replace(/^\{\{\s*/, '').replace(/\s*\}\}$/, '');
-                // Support $json.prop or $json["prop"] or $json['prop']
-                const bracketMatch = t.match(/\$json\s*\[\s*['\"]([^'\"]+)['\"]\s*\]\s*$/);
-                if (bracketMatch && bracketMatch[1]) return bracketMatch[1];
-                const dotMatch = t.match(/\$json\s*\.\s*([a-zA-Z0-9_\.]+)\s*$/);
-                if (dotMatch && dotMatch[1]) return dotMatch[1]; // Return full path, not just last segment
-                return undefined;
-              };
-              const fromRaw = typeof rawSource === 'string' ? extractPath(rawSource) : undefined;
-              const fromExpr = typeof sourceExpr === 'string' ? extractPath(sourceExpr) : undefined;
-              if (fromRaw && /^[a-zA-Z0-9_\.]+$/.test(fromRaw)) {
-                outputProp = fromRaw;
-              } else if (fromExpr && /^[a-zA-Z0-9_\.]+$/.test(fromExpr)) {
-                outputProp = fromExpr;
-              }
-            }
-
-            if (result.error && phoneRewriteOnInvalid === 'error') {
-              throw new NodeOperationError(this.getNode(), `Phone rewrite failed for '${outputProp}': ${result.error}`);
-            }
-
-            // Stage for potential swap; we will finalise 'written' after swap-pass
-            preWrite.push({
-              index: m,
-              outputProp,
-              originalValue: originalValue as string,
-              result,
-              expectedTypes: (mapping as any).expectedTypes as string[] | undefined,
-              fallbackTypes: (mapping as any).fallbackTypes as string[] | undefined,
-            });
-
-            const summary: Record<string, unknown> = {
-              name: outputProp,
-            } as Record<string, unknown>;
-            summary.name = outputProp;
-            summary.original = originalValue;
-            summary.outputProperty = outputProp;
-            summary.formatted = result.formatted;
-            summary.format = result.format;
-            summary.region = result.region;
-            summary.type = result.type;
-            summary.valid = result.valid;
-            summary.possible = result.possible;
-            summary.error = result.error;
-            if (Array.isArray((mapping as any).expectedTypes) && (mapping as any).expectedTypes.length) {
-              const expected = (mapping as any).expectedTypes as string[];
-              summary.expectedTypes = expected;
-              const actualType = result.type as string | undefined;
-              summary.expectedTypeMatch = acceptsExpected(expected, actualType);
-            }
-            if (Array.isArray((mapping as any).fallbackTypes) && (mapping as any).fallbackTypes.length) {
-              summary.fallbackTypes = (mapping as any).fallbackTypes as string[];
-            }
-            rewrites.push(summary);
-
-            if (!result.valid || result.error) {
-              allValid = false;
-              if (result.error) {
-                errors.push({ input: outputProp, error: result.error });
-              }
-            }
-          }
-
-          // Auto realignment: try to fill mismatched outputs from any source entry whose detected type
-          // satisfies the expected types (using relaxed compatibility rules above). This also supports
-          // one-sided realignment where only one entry is mismatched.
-          if (autoRealign) {
-            const sourceUsed: Record<string, boolean> = {};
-            for (let i = 0; i < preWrite.length; i++) {
-              const target = preWrite[i];
-              const targetSummary = rewrites[i];
-              const expected = target.expectedTypes;
-              const fallback = target.fallbackTypes;
-              if (!targetSummary || !expected || expected.length === 0) continue;
-              const alreadyAligned = targetSummary.expectedTypeMatch === true;
-              if (alreadyAligned && allowDuplicateAssignment) continue; // no need to realign when duplicates allowed
-              // If not aligned (or duplicates disallowed and slot empty), find best source candidate
-              if (targetSummary.expectedTypeMatch === false || (!allowDuplicateAssignment && !(target.outputProp in written))) {
-                for (let s = 0; s < preWrite.length; s++) {
-                  const source = preWrite[s];
-                  const sourceType = source.result.type as string | undefined;
-                  if (!sourceType) continue;
-                  const sourceValue = source.result.formatted ?? source.originalValue;
-                  // skip if duplicates not allowed and this source already assigned elsewhere
-                  if (!allowDuplicateAssignment && sourceUsed[source.outputProp]) continue;
-                  if (acceptsExpected(expected, sourceType) || (Array.isArray(fallback) && fallback.length > 0 && acceptsExpected(fallback, sourceType))) {
-                    if (allowDuplicateAssignment || !(target.outputProp in written)) {
-                      written[target.outputProp] = sourceValue;
-                      targetSummary.correctionMade = true;
-                      targetSummary.correctionSource = source.outputProp;
-                      if (!acceptsExpected(expected, sourceType) && Array.isArray(fallback) && acceptsExpected(fallback, sourceType)) {
-                        targetSummary.fallbackUsed = true;
-                      }
-                      sourceUsed[source.outputProp] = true;
-                    }
-                    break; // assigned a suitable source
-                  }
-                }
-              }
-            }
-          }
-
-          // For any entries not set via swap, apply default write policy now
-          for (let k = 0; k < preWrite.length; k++) {
-            const staged = preWrite[k];
-            if (staged.outputProp in written) continue; // already set via swap
-            const res = staged.result;
-            // On Invalid also applies when expected type does not match and we did not realign this entry
-            let valueToWrite: unknown = res.formatted;
-            const mismatched = rewrites[k]?.expectedTypeMatch === false;
-            const notRealigned = !(preWrite[k].outputProp in written);
-            if ((res.error || (mismatched && notRealigned)) && phoneRewriteOnInvalid !== undefined) {
-              switch (phoneRewriteOnInvalid) {
-                case 'empty':
-                  valueToWrite = '';
-                  break;
-                case 'null':
-                  valueToWrite = null;
-                  break;
-                case 'leave-as-is':
-                default:
-                  valueToWrite = staged.originalValue;
-                  break;
-              }
-            }
-            written[staged.outputProp] = valueToWrite as unknown;
-          }
-
-          // Write outputs according to pass-through
-          // Create a deep copy to avoid mutating the original input
-          const targetObj = passThrough ? JSON.parse(JSON.stringify(item.json)) : {};
-          for (const [key, value] of Object.entries(written)) {
-            if (key.includes('.')) {
-              // Use dot notation helper for nested paths
-              setNestedValue(targetObj, key, value);
-            } else {
-              // Direct assignment for simple keys
-              targetObj[key] = value;
-            }
-          }
-          item.json = targetObj as unknown as IDataObject;
-        } else {
-          // Fallback to legacy behavior using InputField entries if no mappings configured
-          for (let f = 0; f < inputFields.length; f++) {
-            const field = inputFields[f];
-            if (field.validationType === 'string' && field.stringFormat === 'mobilePhone' && field.stringData) {
-              const { rewritePhone } = await import('./validation/helpers');
-              const result = rewritePhone(field.stringData, field);
-              const outputProp = (field.phoneRewriteOutputProperty && field.phoneRewriteOutputProperty.trim())
-                ? field.phoneRewriteOutputProperty.trim()
-                : `${field.name}Formatted`;
-
-              if (result.error && field.phoneRewriteOnInvalid === 'error') {
-                throw new NodeOperationError(this.getNode(), `Phone rewrite failed for '${field.name}': ${result.error}`);
-              }
-
-              let valueToWrite: unknown = result.formatted;
-              if (!result.formatted && result.error) {
-                switch (field.phoneRewriteOnInvalid) {
-                  case 'empty':
-                    valueToWrite = '';
-                    break;
-                  case 'null':
-                    valueToWrite = null;
-                    break;
-                  case 'leave-as-is':
-                  default:
-                    valueToWrite = field.stringData;
-                    break;
-                }
-              }
-
-              (item.json as Record<string, unknown>)[outputProp] = valueToWrite as unknown;
-
-              rewrites.push({
-                name: field.name,
-                original: field.stringData,
-                outputProperty: outputProp,
-                formatted: result.formatted,
-                format: result.format,
-                region: result.region,
-                type: result.type,
-                valid: result.valid,
-                possible: result.possible,
-                error: result.error,
-              } as Record<string, unknown>);
-
-              if (!result.valid || result.error) {
-                allValid = false;
-                if (result.error) errors.push({ input: field.name, error: result.error });
-              }
-            }
-          }
-        }
-
-        // Attach summary and top-level validity/errors
-        if (!omitRewriteDetails) {
-          (item.json as Record<string, unknown>).phoneRewrites = rewrites.length ? rewrites : undefined;
-        } else {
-          // Ensure any previous value is not leaked
-          if ((item.json as Record<string, unknown>).hasOwnProperty('phoneRewrites')) {
-            (item.json as Record<string, unknown>).phoneRewrites = undefined;
-          }
-        }
-        (item.json as Record<string, unknown>).isValid = allValid;
-        (item.json as Record<string, unknown>).errors = errors.length ? errors : undefined;
-        returnData.push(item);
-        continue;
-      }
-
-      const { isValid, errors } = validateInputFields(inputFields);
-
-      // Helper function to set nested property values
       const setNestedValue = (obj: Record<string, unknown>, path: string, value: unknown): void => {
         const parts = path.split('.');
         let current: any = obj;
@@ -496,12 +443,49 @@ export class ValidatorNode implements INodeType {
         current[lastPart] = value;
       };
 
-      // Write validated values back to the item
-      // This ensures expressions that transform/map data are reflected in the output
-      const errorFields = new Set(errors.map(e => e.field));
+      // Handle field-level phone validation errors with field-specific onInvalid settings
+      const phoneErrorsWithFieldHandling: string[] = [];
+      const remainingValidationErrors = validationErrors.filter(error => {
+        const field = inputFields.find(f => f.name === error.field);
+        if (field && field.validationType === 'string' && field.stringFormat === 'mobilePhone') {
+          const fieldOnInvalid = field.phoneOnInvalid || 'use-global';
+          if (fieldOnInvalid !== 'use-global') {
+            // Handle this phone field error with field-level setting
+            phoneErrorsWithFieldHandling.push(error.field);
+            switch (fieldOnInvalid) {
+              case 'error':
+                throw new NodeOperationError(this.getNode(), `Phone validation failed for '${field.name}': ${error.message}`);
+              case 'leave-as-is':
+                if (field.name.includes('.')) {
+                  setNestedValue(item.json as Record<string, unknown>, field.name, field.stringData);
+                } else {
+                  (item.json as Record<string, unknown>)[field.name] = field.stringData;
+                }
+                break;
+              case 'empty':
+                if (field.name.includes('.')) {
+                  setNestedValue(item.json as Record<string, unknown>, field.name, '');
+                } else {
+                  (item.json as Record<string, unknown>)[field.name] = '';
+                }
+                break;
+              case 'null':
+                if (field.name.includes('.')) {
+                  setNestedValue(item.json as Record<string, unknown>, field.name, null);
+                } else {
+                  (item.json as Record<string, unknown>)[field.name] = null;
+                }
+                break;
+            }
+            return false; // Remove from validationErrors list as we've handled it
+          }
+        }
+        return true; // Keep in validationErrors for global handling
+      });
+
+      const errorFields = new Set(remainingValidationErrors.map(e => e.field));
       for (const field of inputFields) {
-        // Only write back if this field passed validation
-        if (!errorFields.has(field.name)) {
+        if (!errorFields.has(field.name) && !phoneErrorsWithFieldHandling.includes(field.name)) {
           let valueToWrite;
           switch (field.validationType) {
             case 'string':
@@ -517,11 +501,10 @@ export class ValidatorNode implements INodeType {
               valueToWrite = field.dateData;
               break;
             case 'enum':
-              valueToWrite = field.stringData; // enum uses stringData
+              valueToWrite = field.stringData;
               break;
           }
 
-          // Handle nested field names (e.g., "supplied_details.phone")
           if (field.name.includes('.')) {
             setNestedValue(item.json as Record<string, unknown>, field.name, valueToWrite);
           } else {
@@ -530,73 +513,145 @@ export class ValidatorNode implements INodeType {
         }
       }
 
-      // Get the onInvalid behavior option
       const onInvalid = this.getNodeParameter('onInvalid', itemIndex, 'continue') as string;
 
-      if (outputMode === 'output-items') {
-        // Handle onInvalid behavior when validation fails
-        if (!isValid && onInvalid !== 'continue') {
-          switch (onInvalid) {
-            case 'error':
-              throw new NodeOperationError(this.getNode(), `Validation failed for item ${itemIndex}: ${errors.map(e => e.message).join('; ')}`);
-            case 'skip':
-              // Skip this item - don't add to returnData
-              continue;
-            case 'set-null':
-              // Set invalid fields to null
-              for (const error of errors) {
+      if (remainingValidationErrors.length > 0 && onInvalid !== 'continue') {
+        switch (onInvalid) {
+          case 'error':
+            throw new NodeOperationError(this.getNode(), `Validation failed for item ${itemIndex}: ${remainingValidationErrors.map(e => e.message).join('; ')}`);
+          case 'skip':
+            continue;
+          case 'set-null':
+            for (const error of remainingValidationErrors) {
+              if (error.field.includes('.')) {
+                setNestedValue(item.json as Record<string, unknown>, error.field, null);
+              } else {
                 (item.json as Record<string, unknown>)[error.field] = null;
               }
-              break;
-            case 'set-empty':
-              // Set invalid fields to appropriate empty values
-              for (const error of errors) {
-                const field = inputFields.find(f => f.name === error.field);
-                if (field) {
-                  switch (field.validationType) {
-                    case 'string':
-                      (item.json as Record<string, unknown>)[error.field] = '';
-                      break;
-                    case 'number':
-                      (item.json as Record<string, unknown>)[error.field] = 0;
-                      break;
-                    case 'boolean':
-                      (item.json as Record<string, unknown>)[error.field] = false;
-                      break;
-                    case 'date':
-                      (item.json as Record<string, unknown>)[error.field] = '';
-                      break;
-                    case 'enum':
-                      (item.json as Record<string, unknown>)[error.field] = '';
-                      break;
-                    default:
-                      (item.json as Record<string, unknown>)[error.field] = null;
-                  }
+            }
+            break;
+          case 'set-empty':
+            for (const error of remainingValidationErrors) {
+              const field = inputFields.find(f => f.name === error.field);
+              if (field) {
+                let emptyValue;
+                switch (field.validationType) {
+                  case 'string':
+                    emptyValue = '';
+                    break;
+                  case 'number':
+                    emptyValue = 0;
+                    break;
+                  case 'boolean':
+                    emptyValue = false;
+                    break;
+                  case 'date':
+                    emptyValue = '';
+                    break;
+                  case 'enum':
+                    emptyValue = '';
+                    break;
+                  default:
+                    emptyValue = null;
+                }
+                if (error.field.includes('.')) {
+                  setNestedValue(item.json as Record<string, unknown>, error.field, emptyValue);
+                } else {
+                  (item.json as Record<string, unknown>)[error.field] = emptyValue;
                 }
               }
-              break;
+            }
+            break;
+        }
+      }
+
+      const enablePhoneRewrite = this.getNodeParameter('enablePhoneRewrite', itemIndex, false) as boolean;
+      let phoneRewriteResult:
+        | {
+            allValid: boolean;
+            errors: Array<{ input?: string; error: string }>;
+            rewrites: Array<Record<string, unknown>>;
+            omitRewriteDetails: boolean;
           }
+        | undefined;
+
+      if (enablePhoneRewrite) {
+        phoneRewriteResult = await runPhoneRewrite(item, itemIndex, inputFields);
+
+        if (!phoneRewriteResult.omitRewriteDetails) {
+          (item.json as Record<string, unknown>).phoneRewrites = phoneRewriteResult.rewrites.length
+            ? phoneRewriteResult.rewrites
+            : undefined;
+        } else if ((item.json as Record<string, unknown>).hasOwnProperty('phoneRewrites')) {
+          (item.json as Record<string, unknown>).phoneRewrites = undefined;
+        }
+      } else if ((item.json as Record<string, unknown>).hasOwnProperty('phoneRewrites')) {
+        (item.json as Record<string, unknown>).phoneRewrites = undefined;
+      }
+
+      // Build a map of fields that were successfully realigned so we can annotate their errors
+      const realignmentInfo = new Map<string, { correctedFrom: string; correctedTo: string }>();
+      if (phoneRewriteResult && phoneRewriteResult.rewrites.length > 0) {
+        for (const rewrite of phoneRewriteResult.rewrites) {
+          if (rewrite.correctionMade === true) {
+            realignmentInfo.set(rewrite.name as string, {
+              correctedFrom: rewrite.correctionSource as string,
+              correctedTo: rewrite.outputProperty as string,
+            });
+          }
+        }
+      }
+
+      // Transform validation errors to show resolution for successfully realigned fields
+      const transformedValidationErrors = validationErrors.map(error => {
+        const field = inputFields.find(f => f.name === error.field);
+        const realignment = realignmentInfo.get(error.field);
+
+        // If this phone field was successfully realigned, annotate the error to show it was resolved
+        if (field && field.validationType === 'string' && field.stringFormat === 'mobilePhone' && realignment) {
+          return {
+            field: error.field,
+            message: error.message,
+            resolved: true,
+            resolution: `Auto-realigned from '${realignment.correctedFrom}' to '${realignment.correctedTo}'`,
+          };
         }
 
-        if (outputOnlyIsValid) {
-          // Replace output with only isValid (+ errors when invalid)
-          const minimal: IDataObject = { isValid } as IDataObject;
-          if (!isValid && errors.length) minimal.errors = errors;
-          item.json = minimal;
-        } else {
-          // Pass-through original item, just annotate
-          (item.json as Record<string, unknown>).isValid = isValid;
-          if (!isValid) {
-            (item.json as Record<string, unknown>).errors = errors.length ? errors : undefined;
-          }
-        }
-        returnData.push(item);
-      } else {
-        // Invalid node mode
-        throw new NodeOperationError(this.getNode(), `Invalid node mode: ${outputMode}. Supported modes are 'output-items' and 'rewrite-phone'.`);
+        return { field: error.field, message: error.message };
+      });
+
+      // Count only unresolved errors for validity determination
+      const unresolvedValidationErrors = transformedValidationErrors.filter(e => !e.resolved);
+      const hasUnresolvedValidationErrors = unresolvedValidationErrors.length > 0;
+      const combinedIsValid = !hasUnresolvedValidationErrors && (phoneRewriteResult ? phoneRewriteResult.allValid : true);
+      const combinedErrors: Array<Record<string, unknown>> = [];
+
+      // Include all validation errors with their resolution status
+      if (transformedValidationErrors.length > 0) {
+        combinedErrors.push(...transformedValidationErrors);
       }
+
+      // Include phone rewrite errors (only unresolved ones)
+      if (phoneRewriteResult && !phoneRewriteResult.allValid && phoneRewriteResult.errors.length) {
+        combinedErrors.push(...phoneRewriteResult.errors.map(error => ({ input: error.input, error: error.error })));
+      }
+
+      if (outputOnlyIsValid) {
+        const minimal: IDataObject = { isValid: combinedIsValid } as IDataObject;
+        if (combinedErrors.length) minimal.errors = combinedErrors;
+        item.json = minimal;
+      } else {
+        (item.json as Record<string, unknown>).isValid = combinedIsValid;
+        if (combinedErrors.length) {
+          (item.json as Record<string, unknown>).errors = combinedErrors;
+        } else if ((item.json as Record<string, unknown>).hasOwnProperty('errors')) {
+          (item.json as Record<string, unknown>).errors = undefined;
+        }
+      }
+
+      returnData.push(item);
     }
 
-    return this.prepareOutputData(returnData);
+    return [returnData];
   }
 }
