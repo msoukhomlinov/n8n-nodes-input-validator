@@ -95,7 +95,21 @@ const validationFunctions: Record<string, ValidationFunction> = {
             break;
         }
 
-        if (!modePasses) return { isValid: false, error: null };
+        if (!modePasses) {
+          // Provide specific error based on validation mode (mode already set above)
+          let errorMessage = 'Value must be a valid phone number';
+          if (mode === 'possible') {
+            errorMessage = withRegionText('Value must be a possible phone number');
+          } else if (mode === 'validForRegion') {
+            errorMessage = `Value must be a valid phone number for region ${testRegion}`;
+          } else if (mode === 'possibleForType') {
+            // This case is handled earlier in the possibleForType branch with specific type mismatch error
+            errorMessage = withRegionText('Value must be a possible phone number matching the allowed types');
+          } else {
+            errorMessage = withRegionText('Value must be a valid phone number');
+          }
+          return { isValid: false, error: errorMessage };
+        }
 
         if (field?.phoneAllowedTypes && field.phoneAllowedTypes.length > 0) {
           const detectedType = phoneUtil.getNumberType(number);
@@ -127,8 +141,10 @@ const validationFunctions: Record<string, ValidationFunction> = {
         }
 
         return { isValid: true };
-      } catch (_) {
-        return { isValid: false, error: null };
+      } catch (err) {
+        // Provide error message from exception if available
+        const errorMessage = err instanceof Error ? err.message : 'Unknown error parsing phone number';
+        return { isValid: false, error: withRegionText(`Invalid phone number format: ${errorMessage}`) };
       }
     };
 

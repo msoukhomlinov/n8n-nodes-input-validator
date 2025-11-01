@@ -11,7 +11,7 @@ export const handleBooleanValidation: ValidationHandler = (field: InputField): F
     return errors;
   }
 
-  if (required && booleanData === undefined) {
+  if (required && (booleanData === undefined || booleanData === null)) {
     errors.push({ field: name, message: appendCustomErrorMessage(buildRequiredMessage(field), field) });
   }
 

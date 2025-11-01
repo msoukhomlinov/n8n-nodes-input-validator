@@ -62,8 +62,26 @@ export const handleNumberValidation: ValidationHandler = (field: InputField): Fi
       break;
     case 'oneOf':
       if (oneOfValues) {
-        const validValues = oneOfValues.split(',').map(v => parseFloat(v.trim()));
-        if (!validValues.includes(valueToValidate)) {
+        // Parse and filter out invalid number strings (NaN values)
+        const parsedValues = oneOfValues.split(',').map(v => {
+          const trimmed = v.trim();
+          const parsed = parseFloat(trimmed);
+          return { original: trimmed, parsed };
+        });
+        const validValues = parsedValues.filter(p => !Number.isNaN(p.parsed)).map(p => p.parsed);
+        const invalidEntries = parsedValues.filter(p => Number.isNaN(p.parsed)).map(p => p.original);
+        
+        // Warn if oneOfValues contains invalid entries
+        if (invalidEntries.length > 0 && validValues.length === 0) {
+          errors.push({
+            field: name,
+            message: appendCustomErrorMessage(`Invalid oneOf configuration: no valid numbers found. Invalid entries: ${invalidEntries.join(', ')}`, field),
+          });
+          break;
+        }
+        
+        if (validValues.length > 0 && !validValues.includes(valueToValidate)) {
+          // Only include valid numeric values in error message
           errors.push({
             field: name,
             message: appendCustomErrorMessage(`Value must be one of: ${validValues.join(', ')}`, field),

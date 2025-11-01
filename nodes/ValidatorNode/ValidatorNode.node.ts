@@ -220,8 +220,8 @@ export class ValidatorNode implements INodeType {
             // Preserve original value (including null) for optional empty fields
             originalValue = field.stringData ?? '';
             result = {
-              // Write the actual original value (null/undefined/empty) not coerced version
-              formatted: field.stringData,
+              // Normalize null/undefined to empty string for output consistency
+              formatted: field.stringData ?? '',
               format: (field.phoneRewriteFormat || 'E164') as 'E164' | 'INTERNATIONAL' | 'NATIONAL' | 'RFC3966',
               valid: false,
               possible: false,
