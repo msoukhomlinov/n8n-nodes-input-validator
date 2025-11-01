@@ -9,12 +9,19 @@ export { phoneRewriteValues } from './phoneRewrite';
 
 export const inputFieldValues: INodeProperties[] = [
   {
+    displayName: 'Input Field Configuration',
+    name: 'inputFieldHeader',
+    type: 'notice',
+    default: 'Configure validation settings for this field below',
+  },
+  {
     displayName: 'Validation Name',
     name: 'name',
     type: 'string',
     default: '',
-    placeholder: 'Enter validation name',
-    description: 'Name of the validation',
+    placeholder: 'e.g., emailAddress, companyID, mobilePhone',
+    description: 'Unique name identifying this validation field (e.g., \'emailAddress\', \'companyID\')',
+    hint: 'This name is used to identify this input block and appears in error messages',
   },
   {
     displayName: 'Validation Type',
