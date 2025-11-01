@@ -10,7 +10,17 @@ type ValidationResult = boolean | { isValid: boolean; error?: string };
 type ValidationFunction = (value: string, field?: InputField) => ValidationResult;
 
 const validationFunctions: Record<string, ValidationFunction> = {
-  none: () => true,
+  none: (str: string, field?: InputField) => {
+    if (field?.stringMaxLength !== undefined && typeof field.stringMaxLength === 'number' && field.stringMaxLength >= 0) {
+      if (str.length > field.stringMaxLength) {
+        return {
+          isValid: false,
+          error: `String length must not exceed ${field.stringMaxLength} characters`,
+        };
+      }
+    }
+    return true;
+  },
   email: (str: string, field?: InputField) =>
     validator.isEmail(str, {
       allow_display_name: field?.emailAllowDisplayName,
@@ -350,6 +360,14 @@ export const handleStringValidation: ValidationHandler = (field: InputField): Fi
     );
     if (!formatValidation.isValid) {
       errors.push({ field: name, message: formatValidation.error || 'Validation failed' });
+    }
+  }
+
+  // Check max length for 'none' format
+  if (valueToValidate !== '' && stringFormat === 'none' && field?.stringMaxLength !== undefined) {
+    const maxLengthValidation = validateStringFormat('none', valueToValidate, undefined, undefined, field);
+    if (!maxLengthValidation.isValid) {
+      errors.push({ field: name, message: maxLengthValidation.error || 'Validation failed' });
     }
   }
 

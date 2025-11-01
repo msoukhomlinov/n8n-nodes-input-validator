@@ -61,6 +61,7 @@ export interface InputField {
     oneOfValues?: string;
     regexPattern?: string;
     customErrorMessage?: string;
+    stringMaxLength?: number;
 
     // String validator option fields (subset of validator.js options for usability)
     // Email options

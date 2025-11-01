@@ -73,6 +73,20 @@ export const stringProperties: INodeProperties[] = [
       },
     },
   },
+  {
+    displayName: 'Max Length',
+    name: 'stringMaxLength',
+    type: 'number',
+    default: undefined,
+    placeholder: 'Enter maximum characters',
+    description: 'Maximum number of characters allowed (leave empty for no limit)',
+    displayOptions: {
+      show: {
+        validationType: ['string'],
+        stringFormat: ['none'],
+      },
+    },
+  },
   // Email options
   {
     displayName: 'Advanced Email Options',
