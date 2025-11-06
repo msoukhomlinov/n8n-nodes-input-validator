@@ -282,6 +282,163 @@ export function buildRequiredMessage(field: InputField): string {
   }
 }
 
+/**
+ * Removes a field at the given path from an object.
+ * Handles nested paths (e.g., "address.street") and arrays.
+ *
+ * For arrays of objects: removes the property from each object element.
+ * For arrays of primitives: filters out failing elements (requires failingIndices).
+ *
+ * @param obj - The object to modify
+ * @param path - Dot-separated path to the field (e.g., "address.street")
+ * @param options - Optional configuration
+ * @param options.failingIndices - For arrays of primitives, indices of failing elements to remove
+ */
+export function removeFieldAtPath(
+  obj: Record<string, unknown>,
+  path: string,
+  options?: { failingIndices?: number[] },
+): void {
+  if (!path || !obj) return;
+
+  const parts = path.split('.');
+  let current: any = obj;
+
+  // Navigate to the parent of the target field, checking for arrays along the way
+  for (let i = 0; i < parts.length - 1; i++) {
+    const part = parts[i];
+    if (!(part in current)) {
+      // Path doesn't exist, nothing to remove
+      return;
+    }
+
+    const value = current[part];
+
+    // If we encounter an array while navigating, handle it
+    if (Array.isArray(value)) {
+      if (value.length === 0) {
+        return; // Empty array, nothing to do
+      }
+
+      // Check if array contains objects
+      const firstElement = value[0];
+      const isArrayOfObjects = typeof firstElement === 'object' && firstElement !== null && !Array.isArray(firstElement);
+
+      if (isArrayOfObjects) {
+        // Array of objects: remove the remaining path from each object
+        const remainingPath = parts.slice(i + 1).join('.');
+        for (let j = 0; j < value.length; j++) {
+          if (typeof value[j] === 'object' && value[j] !== null && !Array.isArray(value[j])) {
+            removeFieldAtPath(value[j] as Record<string, unknown>, remainingPath, options);
+          }
+        }
+        return; // Done processing array
+      } else {
+        // Array of primitives encountered in path - this shouldn't happen in normal usage
+        // but if it does, we can't navigate further
+        return;
+      }
+    }
+
+    if (typeof value !== 'object' || value === null) {
+      // Can't navigate further
+      return;
+    }
+
+    current = value;
+  }
+
+  const lastPart = parts[parts.length - 1];
+
+  // If path is simple (no dots), remove directly
+  if (parts.length === 1) {
+    const value = obj[lastPart];
+
+    // Handle arrays at the root level
+    if (Array.isArray(value)) {
+      if (value.length === 0) {
+        delete obj[lastPart];
+        return;
+      }
+
+      const firstElement = value[0];
+      const isArrayOfObjects = typeof firstElement === 'object' && firstElement !== null && !Array.isArray(firstElement);
+
+      if (isArrayOfObjects) {
+        // Array of objects: remove the property from each object
+        // (This case is for paths like "users" where we want to remove a property from all objects)
+        // But actually, if the path is just "users", we'd remove the entire array
+        // So this case might not apply - we'd need a path like "users.name" to remove "name" from each
+        // For now, if path is just the array name, remove the entire array
+        delete obj[lastPart];
+      } else {
+        // Array of primitives: filter out failing indices or remove entire array
+        if (options?.failingIndices && options.failingIndices.length > 0) {
+          const failingSet = new Set(options.failingIndices);
+          const filtered = value.filter((_, index) => !failingSet.has(index));
+          if (filtered.length === 0) {
+            delete obj[lastPart];
+          } else {
+            obj[lastPart] = filtered;
+          }
+        } else {
+          delete obj[lastPart];
+        }
+      }
+    } else {
+      delete obj[lastPart];
+    }
+    return;
+  }
+
+  // Handle nested path - current is the parent object
+  if (!(lastPart in current)) {
+    // Field doesn't exist, nothing to remove
+    return;
+  }
+
+  const value = current[lastPart];
+
+  // Handle arrays at the target location
+  if (Array.isArray(value)) {
+    if (value.length === 0) {
+      delete current[lastPart];
+      return;
+    }
+
+    const firstElement = value[0];
+    const isArrayOfObjects = typeof firstElement === 'object' && firstElement !== null && !Array.isArray(firstElement);
+
+    if (isArrayOfObjects) {
+      // Array of objects: remove the property from each object
+      // This handles the case where the path ends with a property name on an array of objects
+      // Actually, this shouldn't happen because we'd have navigated into the array earlier
+      // But if it does, remove the property from each object
+      for (let i = 0; i < value.length; i++) {
+        if (typeof value[i] === 'object' && value[i] !== null && !Array.isArray(value[i])) {
+          delete (value[i] as Record<string, unknown>)[lastPart];
+        }
+      }
+    } else {
+      // Array of primitives: filter out failing indices
+      if (options?.failingIndices && options.failingIndices.length > 0) {
+        const failingSet = new Set(options.failingIndices);
+        const filtered = value.filter((_, index) => !failingSet.has(index));
+        if (filtered.length === 0) {
+          delete current[lastPart];
+        } else {
+          current[lastPart] = filtered;
+        }
+      } else {
+        delete current[lastPart];
+      }
+    }
+  } else {
+    // Not an array, just remove the property
+    delete current[lastPart];
+  }
+}
+
 export function rewritePhone(
   value: string,
   field: InputField,

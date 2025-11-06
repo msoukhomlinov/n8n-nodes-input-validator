@@ -195,8 +195,9 @@ export interface InputField {
      * - empty: set to empty string
      * - null: set to null
      * - error: throw and fail the item
+     * - skip-field: remove the field from the item
      */
-    phoneOnInvalid?: 'use-global' | 'leave-as-is' | 'empty' | 'null' | 'error';
+    phoneOnInvalid?: 'use-global' | 'leave-as-is' | 'empty' | 'null' | 'error' | 'skip-field';
 
     // Phone rewrite/format options used when phone rewrite is enabled in output-items mode
     /**

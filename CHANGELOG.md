@@ -1,5 +1,30 @@
 # Changelog
 
+## [2.5.1]
+
+### Added - 2025-11-06
+
+- Omit Empty Fields option
+  - New global boolean: "Omit Empty Fields" removes null, undefined, or empty string values from output
+  - Useful for cleaning up optional fields that weren't provided (e.g., empty mobilePhone)
+  - Recursively cleans nested objects; preserves special fields (isValid, errors, phoneRewrites)
+
+
+## [2.5.0]
+
+### Added/Changed - 2025-11-06
+
+- Skip Field option for On Invalid
+  - New global option: "Skip Field" removes only fields that fail validation and continues outputting the item
+  - Set as the default for new nodes; options sorted alphabetically in the picklist
+  - Field-level phone validation (`phoneOnInvalid`) now supports `skip-field`
+- Implementation details
+  - Added `removeFieldAtPath` helper to remove nested fields and handle arrays (objects and primitives)
+  - Wired `skip-field` into global and field-level validation failure handling
+  - Phone rewrite flow respects `skip-field` (skips writing formatted output for failing fields)
+- Fixes
+  - Replaced `await import` usage in non-async context with static import to prevent runtime/TS errors
+
 ## [2.4.1]
 
 ### Fixed - 2025-11-01

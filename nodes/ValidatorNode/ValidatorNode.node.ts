@@ -10,6 +10,7 @@ import './validation'; // ensure handlers are registered
 import { validateInputFields } from './validateInput';
 import { InputField } from './types';
 import { inputFieldValues, phoneRewriteValues } from './ui';
+import { removeFieldAtPath } from './validation/helpers';
 
 export class ValidatorNode implements INodeType {
   description: INodeTypeDescription = {
@@ -85,6 +86,18 @@ export class ValidatorNode implements INodeType {
           },
         },
       },
+      {
+        displayName: 'Omit Empty Fields',
+        name: 'omitEmptyFields',
+        type: 'boolean',
+        default: false,
+        description: 'When enabled, remove fields with null, undefined, or empty string values from the output',
+        displayOptions: {
+          show: {
+            nodeMode: ['output-items'],
+          },
+        },
+      },
       // On Invalid behavior for Output Items mode
       {
         displayName: 'On Invalid',
@@ -92,19 +105,14 @@ export class ValidatorNode implements INodeType {
         type: 'options',
         options: [
           {
-            name: 'Continue (default)',
+            name: 'Continue',
             value: 'continue',
             description: 'Pass through original data with validation errors included',
           },
           {
-            name: 'Throw Error',
-            value: 'error',
-            description: 'Fail the entire item when any validation fails',
-          },
-          {
-            name: 'Skip Item',
-            value: 'skip',
-            description: 'Exclude the item from output when validation fails',
+            name: 'Set Invalid Fields to Empty',
+            value: 'set-empty',
+            description: 'Set fields that fail validation to empty values (empty string, 0, false, etc.)',
           },
           {
             name: 'Set Invalid Fields to Null',
@@ -112,12 +120,22 @@ export class ValidatorNode implements INodeType {
             description: 'Set fields that fail validation to null',
           },
           {
-            name: 'Set Invalid Fields to Empty',
-            value: 'set-empty',
-            description: 'Set fields that fail validation to empty values (empty string, 0, false, etc.)',
+            name: 'Skip Field',
+            value: 'skip-field',
+            description: 'Remove the field that failed validation but continue to output the item',
+          },
+          {
+            name: 'Skip Item',
+            value: 'skip',
+            description: 'Exclude the item from output when validation fails',
+          },
+          {
+            name: 'Throw Error',
+            value: 'error',
+            description: 'Fail the entire item when any validation fails',
           },
         ],
-        default: 'continue',
+        default: 'skip-field',
         description: 'What to do when validation fails for any field',
         displayOptions: {
           show: {
@@ -379,12 +397,16 @@ export class ValidatorNode implements INodeType {
               case 'null':
                 valueToWrite = null;
                 break;
+              case 'skip-field':
+                // Skip writing this output property - don't add it to written
+                continue;
               case 'leave-as-is':
               default:
                 valueToWrite = staged.originalValue;
                 break;
             }
           }
+          // Only write if not skip-field (skip-field would have continued above)
           written[staged.outputProp] = valueToWrite as unknown;
         }
 
@@ -421,6 +443,9 @@ export class ValidatorNode implements INodeType {
                 case 'null':
                   valueToWrite = null;
                   break;
+                case 'skip-field':
+                  // Skip writing this output property
+                  continue;
                 case 'leave-as-is':
                 default:
                   valueToWrite = field.stringData;
@@ -519,6 +544,10 @@ export class ValidatorNode implements INodeType {
                   (item.json as Record<string, unknown>)[field.name] = null;
                 }
                 break;
+              case 'skip-field': {
+                removeFieldAtPath(item.json as Record<string, unknown>, field.name);
+                break;
+              }
             }
             return false; // Remove from validationErrors list as we've handled it
           }
@@ -610,6 +639,12 @@ export class ValidatorNode implements INodeType {
               }
             }
             break;
+          case 'skip-field': {
+            for (const error of remainingValidationErrors) {
+              removeFieldAtPath(item.json as Record<string, unknown>, error.field);
+            }
+            break;
+          }
         }
       }
 
@@ -695,6 +730,37 @@ export class ValidatorNode implements INodeType {
         } else if ((item.json as Record<string, unknown>).hasOwnProperty('errors')) {
           (item.json as Record<string, unknown>).errors = undefined;
         }
+      }
+
+      // Omit empty fields if requested
+      const omitEmptyFields = this.getNodeParameter('omitEmptyFields', itemIndex, false) as boolean;
+      if (omitEmptyFields && !outputOnlyIsValid) {
+        const cleanItem = (obj: Record<string, unknown>): Record<string, unknown> => {
+          const result: Record<string, unknown> = {};
+          for (const [key, value] of Object.entries(obj)) {
+            // Keep special fields like isValid, errors, phoneRewrites
+            if (key === 'isValid' || key === 'errors' || key === 'phoneRewrites') {
+              result[key] = value;
+              continue;
+            }
+            // Skip null, undefined, and empty string
+            if (value === null || value === undefined || value === '') {
+              continue;
+            }
+            // Recursively clean nested objects (but not arrays)
+            if (typeof value === 'object' && !Array.isArray(value) && value !== null) {
+              const cleaned = cleanItem(value as Record<string, unknown>);
+              // Only include if the cleaned object has properties
+              if (Object.keys(cleaned).length > 0) {
+                result[key] = cleaned;
+              }
+            } else {
+              result[key] = value;
+            }
+          }
+          return result;
+        };
+        item.json = cleanItem(item.json as Record<string, unknown>) as IDataObject;
       }
 
       returnData.push(item);

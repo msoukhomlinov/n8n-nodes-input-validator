@@ -194,11 +194,12 @@ export const stringProperties: INodeProperties[] = [
   ], displayOptions: { show: { validationType: ['string'], stringFormat: ['mobilePhone'], '/nodeMode': ['output-items'], '/enablePhoneRewrite': [true], phoneEnableRewrite: [true], phoneShowAdvancedRewrite: [true] } } },
   { displayName: 'Treat Fixed-Line-or-Mobile as Mobile', name: 'phoneTreatFixedLineOrMobileAsMobile', type: 'boolean', default: true, description: 'When Mobile is allowed, accept Fixed-Line-or-Mobile as Mobile.', displayOptions: { show: { validationType: ['string'], stringFormat: ['mobilePhone'] } } },
   { displayName: 'On Invalid', name: 'phoneOnInvalid', type: 'options', options: [
-    { name: 'Use Global Setting', value: 'use-global' },
-    { name: 'Leave As Is', value: 'leave-as-is' },
     { name: 'Empty String', value: 'empty' },
+    { name: 'Leave As Is', value: 'leave-as-is' },
     { name: 'Null', value: 'null' },
+    { name: 'Skip Field', value: 'skip-field' },
     { name: 'Throw Error (fail item)', value: 'error' },
+    { name: 'Use Global Setting', value: 'use-global' },
   ], default: 'use-global', description: 'What to do when this phone number fails validation. If set to "Use Global Setting", the node-level On Invalid setting will be used instead.', displayOptions: { show: { validationType: ['string'], stringFormat: ['mobilePhone'], '/nodeMode': ['output-items'] } } },
   // Per-field phone rewrite toggle
   { displayName: 'Enable Phone Rewrite', name: 'phoneEnableRewrite', type: 'boolean', default: false, description: 'When enabled, format this phone number field using google-libphonenumber', displayOptions: { show: { validationType: ['string'], stringFormat: ['mobilePhone'], '/nodeMode': ['output-items'], '/enablePhoneRewrite': [true] } } },

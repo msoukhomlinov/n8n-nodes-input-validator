@@ -19,7 +19,7 @@ The **n8n-nodes-input-validator** validates and transforms input data in n8n aga
 - **Date Validation**: Validate dates in ISO 8601 format
 - **Enum Validation**: Validate values against predefined options
 - **Custom Error Messages**: Optional field-level custom error messages with flexible placement (append/prepend/replace)
-- **Flexible Error Handling**: Continue, throw error, skip item, or set invalid fields to null/empty
+- **Flexible Error Handling**: Continue, throw error, skip item, skip field, or set invalid fields to null/empty
 - **Phone Number Rewriting**: Format phone numbers to E.164, International, National, or RFC3966 formats with type realignment
 
 ### Supported String Formats
@@ -52,12 +52,14 @@ The node operates in **Output Items** mode, validating data and outputting items
 
 - **Output only isValid**: When enabled, outputs only `isValid` and `errors` properties (excludes item data)
 - **Enable Phone Rewrite**: Enable phone number formatting/rewriting with google-libphonenumber
-- **On Invalid**: Choose how to handle validation failures:
-  - **Continue (default)**: Pass through original data with validation errors included
-  - **Throw Error**: Fail the entire item when any validation fails
-  - **Skip Item**: Exclude the item from output when validation fails
-  - **Set Invalid Fields to Null**: Set fields that fail validation to null
+- **Omit Empty Fields**: When enabled, remove fields with null, undefined, or empty string values from the output (useful for cleaning up optional fields)
+- **On Invalid**: Choose how to handle validation failures (options sorted alphabetically):
+  - **Continue**: Pass through original data with validation errors included
   - **Set Invalid Fields to Empty**: Set fields that fail validation to empty values (empty string, 0, false, etc.)
+  - **Set Invalid Fields to Null**: Set fields that fail validation to null
+  - **Skip Field** (default): Remove the field that failed validation but continue to output the item
+  - **Skip Item**: Exclude the item from output when validation fails
+  - **Throw Error**: Fail the entire item when any validation fails
 
 #### Phone Rewrite Options (when enabled)
 
@@ -229,12 +231,13 @@ When `String Format` is set to `Phone Number`, the node uses **google-libphonenu
 - **Expected Type(s)**: Constrain accepted phone number types:
   - FIXED_LINE, MOBILE, FIXED_LINE_OR_MOBILE, TOLL_FREE, PREMIUM_RATE, SHARED_COST, VOIP, PERSONAL_NUMBER, PAGER, UAN, VOICEMAIL, UNKNOWN
 - **Treat Fixed-Line-or-Mobile as Mobile**: When enabled (default), treats FIXED_LINE_OR_MOBILE as satisfying MOBILE requirement
-- **On Invalid** (field-level): Override global behavior for this specific phone field:
-  - Use Global Setting (default)
-  - Leave As Is
+- **On Invalid** (field-level): Override global behavior for this specific phone field (options sorted alphabetically):
   - Empty String
+  - Leave As Is
   - Null
+  - Skip Field
   - Throw Error (fail item)
+  - Use Global Setting (default)
 
 #### Phone Rewrite/Formatting
 
