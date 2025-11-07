@@ -1,15 +1,15 @@
 import {
+  IDataObject,
   IExecuteFunctions,
   INodeExecutionData,
   INodeType,
   INodeTypeDescription,
   NodeOperationError,
-  IDataObject,
 } from 'n8n-workflow';
-import './validation'; // ensure handlers are registered
-import { validateInputFields } from './validateInput';
 import { InputField } from './types';
 import { inputFieldValues, phoneRewriteValues } from './ui';
+import { validateInputFields } from './validateInput';
+import './validation'; // ensure handlers are registered
 import { removeFieldAtPath } from './validation/helpers';
 
 export class ValidatorNode implements INodeType {
@@ -71,6 +71,19 @@ export class ValidatorNode implements INodeType {
         displayOptions: {
           show: {
             nodeMode: ['output-items'],
+          },
+        },
+      },
+      {
+        displayName: 'Remove Unspecified Fields',
+        name: 'removeUnspecifiedFields',
+        type: 'boolean',
+        default: false,
+        description: 'When enabled, removes fields from the output that are not specified in the validator inputs',
+        displayOptions: {
+          show: {
+            nodeMode: ['output-items'],
+            outputOnlyIsValid: [false],
           },
         },
       },
@@ -157,6 +170,7 @@ export class ValidatorNode implements INodeType {
     }
 
     const outputOnlyIsValid = this.getNodeParameter('outputOnlyIsValid', 0, false) as boolean;
+    const removeUnspecifiedFields = this.getNodeParameter('removeUnspecifiedFields', 0, false) as boolean;
 
     const runPhoneRewrite = async (
       item: INodeExecutionData,
@@ -724,11 +738,54 @@ export class ValidatorNode implements INodeType {
         if (combinedErrors.length) minimal.errors = combinedErrors;
         item.json = minimal;
       } else {
-        (item.json as Record<string, unknown>).isValid = combinedIsValid;
-        if (combinedErrors.length) {
-          (item.json as Record<string, unknown>).errors = combinedErrors;
-        } else if ((item.json as Record<string, unknown>).hasOwnProperty('errors')) {
-          (item.json as Record<string, unknown>).errors = undefined;
+        if (removeUnspecifiedFields) {
+          // Get list of field names that were specified in the validator
+          const specifiedFieldNames = new Set<string>();
+          for (const field of inputFields) {
+            specifiedFieldNames.add(field.name);
+            
+            // For phone rewrite fields, also track the output property name
+            if (enablePhoneRewrite && 
+                field.validationType === 'string' && 
+                field.stringFormat === 'mobilePhone' && 
+                (field as unknown as { phoneEnableRewrite?: boolean }).phoneEnableRewrite === true) {
+              let outputProp = field.phoneRewriteOutputProperty?.trim();
+              if (!outputProp) {
+                outputProp = `${field.name}Formatted`;
+              }
+              specifiedFieldNames.add(outputProp);
+            }
+          }
+
+          // Filter the output to only include specified fields
+          const filteredJson: IDataObject = {};
+          for (const [key, value] of Object.entries(item.json)) {
+            // Always include special fields like isValid, errors, phoneRewrites
+            if (key === 'isValid' || key === 'errors' || key === 'phoneRewrites') {
+              filteredJson[key] = value;
+            } else if (specifiedFieldNames.has(key)) {
+              // Include fields that were specified in the validator
+              filteredJson[key] = value;
+            }
+            // Skip fields not in the validator inputs
+          }
+          
+          filteredJson.isValid = combinedIsValid;
+          if (combinedErrors.length) {
+            filteredJson.errors = combinedErrors;
+          } else if (filteredJson.hasOwnProperty('errors')) {
+            filteredJson.errors = undefined;
+          }
+          
+          item.json = filteredJson as IDataObject;
+        } else {
+          // Keep all fields from input
+          item.json.isValid = combinedIsValid;
+          if (combinedErrors.length) {
+            item.json.errors = combinedErrors;
+          } else if (item.json.hasOwnProperty('errors')) {
+            item.json.errors = undefined;
+          }
         }
       }
 
