@@ -1,15 +1,15 @@
 import {
+  IDataObject,
   IExecuteFunctions,
   INodeExecutionData,
   INodeType,
   INodeTypeDescription,
   NodeOperationError,
-  IDataObject,
 } from 'n8n-workflow';
-import './validation'; // ensure handlers are registered
-import { validateInputFields } from './validateInput';
 import { InputField } from './types';
 import { inputFieldValues, phoneRewriteValues } from './ui';
+import { validateInputFields } from './validateInput';
+import './validation'; // ensure handlers are registered
 import { removeFieldAtPath } from './validation/helpers';
 
 export class ValidatorNode implements INodeType {
@@ -143,6 +143,19 @@ export class ValidatorNode implements INodeType {
           },
         },
       },
+      {
+        displayName: 'Remove Unspecified Fields',
+        name: 'removeUnspecifiedFields',
+        type: 'boolean',
+        default: false,
+        description: 'When enabled, removes fields from the output that are not specified in the validator inputs',
+        displayOptions: {
+          show: {
+            nodeMode: ['output-items'],
+            outputOnlyIsValid: [false],
+          },
+        },
+      },
       // Phone rewrite inputs and related options (appended at end for stability)
       ...phoneRewriteValues,
     ],
@@ -157,6 +170,7 @@ export class ValidatorNode implements INodeType {
     }
 
     const outputOnlyIsValid = this.getNodeParameter('outputOnlyIsValid', 0, false) as boolean;
+    const removeUnspecifiedFields = this.getNodeParameter('removeUnspecifiedFields', 0, false) as boolean;
 
     const runPhoneRewrite = async (
       item: INodeExecutionData,
@@ -724,11 +738,80 @@ export class ValidatorNode implements INodeType {
         if (combinedErrors.length) minimal.errors = combinedErrors;
         item.json = minimal;
       } else {
-        (item.json as Record<string, unknown>).isValid = combinedIsValid;
-        if (combinedErrors.length) {
-          (item.json as Record<string, unknown>).errors = combinedErrors;
-        } else if ((item.json as Record<string, unknown>).hasOwnProperty('errors')) {
-          (item.json as Record<string, unknown>).errors = undefined;
+        if (removeUnspecifiedFields) {
+          // Build set of allowed field paths from validator inputs (including phone rewrite outputs)
+          const allowedPaths = new Set<string>();
+          for (const field of inputFields) {
+            if (field?.name) allowedPaths.add(field.name);
+            if (
+              enablePhoneRewrite &&
+              field.validationType === 'string' &&
+              field.stringFormat === 'mobilePhone' &&
+              (field as unknown as { phoneEnableRewrite?: boolean }).phoneEnableRewrite === true
+            ) {
+              let outputProp = field.phoneRewriteOutputProperty?.trim();
+              if (!outputProp) {
+                outputProp = `${field.name}Formatted`;
+              }
+              allowedPaths.add(outputProp);
+            }
+          }
+
+          // Helper to read nested value by path (dot notation)
+          const getNestedValue = (obj: Record<string, unknown>, path: string): unknown => {
+            const parts = path.split('.');
+            let current: any = obj;
+            for (let i = 0; i < parts.length; i++) {
+              if (current == null || typeof current !== 'object') return undefined;
+              current = (current as Record<string, unknown>)[parts[i]];
+            }
+            return current;
+          };
+
+          // Reconstruct output JSON by copying only allowed paths, plus special fields
+          const filteredJson: IDataObject = {};
+          const currentJson = item.json as Record<string, unknown>;
+
+          // Always include special fields when present
+          if (Object.prototype.hasOwnProperty.call(currentJson, 'isValid')) {
+            filteredJson.isValid = currentJson.isValid as boolean;
+          }
+          if (Object.prototype.hasOwnProperty.call(currentJson, 'errors')) {
+            filteredJson.errors = currentJson.errors as Array<Record<string, unknown>>;
+          }
+          if (Object.prototype.hasOwnProperty.call(currentJson, 'phoneRewrites')) {
+            filteredJson.phoneRewrites = currentJson.phoneRewrites as Array<Record<string, unknown>>;
+          }
+
+          // Copy each allowed path if it exists in the current item.json
+          for (const path of allowedPaths) {
+            const value = getNestedValue(currentJson, path);
+            if (value !== undefined) {
+              if (path.includes('.')) {
+                setNestedValue(filteredJson, path, value);
+              } else {
+                filteredJson[path] = value;
+              }
+            }
+          }
+
+          // Ensure latest validity/error info is set
+          filteredJson.isValid = combinedIsValid;
+          if (combinedErrors.length) {
+            filteredJson.errors = combinedErrors;
+          } else if (filteredJson.hasOwnProperty('errors')) {
+            filteredJson.errors = undefined;
+          }
+
+          item.json = filteredJson as IDataObject;
+        } else {
+          // Keep all fields from input
+          item.json.isValid = combinedIsValid;
+          if (combinedErrors.length) {
+            item.json.errors = combinedErrors;
+          } else if (item.json.hasOwnProperty('errors')) {
+            item.json.errors = undefined;
+          }
         }
       }
 

@@ -51,8 +51,10 @@ The node operates in **Output Items** mode, validating data and outputting items
 #### Global Settings
 
 - **Output only isValid**: When enabled, outputs only `isValid` and `errors` properties (excludes item data)
+- **Remove Unspecified Fields**: When enabled, removes fields from the output that are not specified in the validator inputs (only visible when "Output only isValid" is disabled). Supports nested field paths (e.g., `user.email`).
 - **Enable Phone Rewrite**: Enable phone number formatting/rewriting with google-libphonenumber
 - **Omit Empty Fields**: When enabled, remove fields with null, undefined, or empty string values from the output (useful for cleaning up optional fields)
+  - **Note**: When both `Remove Unspecified Fields` and `Omit Empty Fields` are enabled, filtering happens first (keeping only specified fields), then empty field removal is applied to the filtered output.
 - **On Invalid**: Choose how to handle validation failures (options sorted alphabetically):
   - **Continue**: Pass through original data with validation errors included
   - **Set Invalid Fields to Empty**: Set fields that fail validation to empty values (empty string, 0, false, etc.)
@@ -215,6 +217,27 @@ By default, the node augments each item with validation results:
 }
 ```
 (Original item data is excluded)
+
+**With `Remove Unspecified Fields` enabled:**
+```json
+{
+  "email": "user@example.com",
+  "quantity": 5,
+  "isValid": true
+}
+```
+(Only fields specified in the validator inputs are included, plus `isValid` and `errors`. Other fields from the input are removed.)
+
+For example, if your input item has:
+```json
+{
+  "email": "user@example.com",
+  "quantity": 5,
+  "extra_field": "some_value",
+  "another_field": "another_value"
+}
+```
+And you only validate `email` and `quantity`, the output will only include those validated fields plus `isValid` (and `errors` if any).
 
 ### Phone Validation & Rewriting
 
