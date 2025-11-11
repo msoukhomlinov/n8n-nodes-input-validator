@@ -769,18 +769,18 @@ export class ValidatorNode implements INodeType {
           };
 
           // Reconstruct output JSON by copying only allowed paths, plus special fields
-          const filteredJson: Record<string, unknown> = {};
+          const filteredJson: IDataObject = {};
           const currentJson = item.json as Record<string, unknown>;
 
           // Always include special fields when present
           if (Object.prototype.hasOwnProperty.call(currentJson, 'isValid')) {
-            filteredJson.isValid = currentJson.isValid;
+            filteredJson.isValid = currentJson.isValid as IDataObject;
           }
           if (Object.prototype.hasOwnProperty.call(currentJson, 'errors')) {
-            filteredJson.errors = currentJson.errors;
+            filteredJson.errors = currentJson.errors as IDataObject;
           }
           if (Object.prototype.hasOwnProperty.call(currentJson, 'phoneRewrites')) {
-            filteredJson.phoneRewrites = currentJson.phoneRewrites;
+            filteredJson.phoneRewrites = currentJson.phoneRewrites as IDataObject;
           }
 
           // Copy each allowed path if it exists in the current item.json
