@@ -739,44 +739,70 @@ export class ValidatorNode implements INodeType {
         item.json = minimal;
       } else {
         if (removeUnspecifiedFields) {
-          // Get list of field names that were specified in the validator
-          const specifiedFieldNames = new Set<string>();
+          // Build set of allowed field paths from validator inputs (including phone rewrite outputs)
+          const allowedPaths = new Set<string>();
           for (const field of inputFields) {
-            specifiedFieldNames.add(field.name);
-            
-            // For phone rewrite fields, also track the output property name
-            if (enablePhoneRewrite && 
-                field.validationType === 'string' && 
-                field.stringFormat === 'mobilePhone' && 
-                (field as unknown as { phoneEnableRewrite?: boolean }).phoneEnableRewrite === true) {
+            if (field?.name) allowedPaths.add(field.name);
+            if (
+              enablePhoneRewrite &&
+              field.validationType === 'string' &&
+              field.stringFormat === 'mobilePhone' &&
+              (field as unknown as { phoneEnableRewrite?: boolean }).phoneEnableRewrite === true
+            ) {
               let outputProp = field.phoneRewriteOutputProperty?.trim();
               if (!outputProp) {
                 outputProp = `${field.name}Formatted`;
               }
-              specifiedFieldNames.add(outputProp);
+              allowedPaths.add(outputProp);
             }
           }
 
-          // Filter the output to only include specified fields
-          const filteredJson: IDataObject = {};
-          for (const [key, value] of Object.entries(item.json)) {
-            // Always include special fields like isValid, errors, phoneRewrites
-            if (key === 'isValid' || key === 'errors' || key === 'phoneRewrites') {
-              filteredJson[key] = value;
-            } else if (specifiedFieldNames.has(key)) {
-              // Include fields that were specified in the validator
-              filteredJson[key] = value;
+          // Helper to read nested value by path (dot notation)
+          const getNestedValue = (obj: Record<string, unknown>, path: string): unknown => {
+            const parts = path.split('.');
+            let current: any = obj;
+            for (let i = 0; i < parts.length; i++) {
+              if (current == null || typeof current !== 'object') return undefined;
+              current = (current as Record<string, unknown>)[parts[i]];
             }
-            // Skip fields not in the validator inputs
+            return current;
+          };
+
+          // Reconstruct output JSON by copying only allowed paths, plus special fields
+          const filteredJson: Record<string, unknown> = {};
+          const currentJson = item.json as Record<string, unknown>;
+
+          // Always include special fields when present
+          if (Object.prototype.hasOwnProperty.call(currentJson, 'isValid')) {
+            filteredJson.isValid = currentJson.isValid;
           }
-          
+          if (Object.prototype.hasOwnProperty.call(currentJson, 'errors')) {
+            filteredJson.errors = currentJson.errors;
+          }
+          if (Object.prototype.hasOwnProperty.call(currentJson, 'phoneRewrites')) {
+            filteredJson.phoneRewrites = currentJson.phoneRewrites;
+          }
+
+          // Copy each allowed path if it exists in the current item.json
+          for (const path of allowedPaths) {
+            const value = getNestedValue(currentJson, path);
+            if (value !== undefined) {
+              if (path.includes('.')) {
+                setNestedValue(filteredJson, path, value);
+              } else {
+                filteredJson[path] = value;
+              }
+            }
+          }
+
+          // Ensure latest validity/error info is set
           filteredJson.isValid = combinedIsValid;
           if (combinedErrors.length) {
             filteredJson.errors = combinedErrors;
           } else if (filteredJson.hasOwnProperty('errors')) {
             filteredJson.errors = undefined;
           }
-          
+
           item.json = filteredJson as IDataObject;
         } else {
           // Keep all fields from input

@@ -51,9 +51,10 @@ The node operates in **Output Items** mode, validating data and outputting items
 #### Global Settings
 
 - **Output only isValid**: When enabled, outputs only `isValid` and `errors` properties (excludes item data)
-- **Remove Unspecified Fields**: When enabled, removes fields from the output that are not specified in the validator inputs (only visible when "Output only isValid" is disabled)
+- **Remove Unspecified Fields**: When enabled, removes fields from the output that are not specified in the validator inputs (only visible when "Output only isValid" is disabled). Supports nested field paths (e.g., `user.email`).
 - **Enable Phone Rewrite**: Enable phone number formatting/rewriting with google-libphonenumber
 - **Omit Empty Fields**: When enabled, remove fields with null, undefined, or empty string values from the output (useful for cleaning up optional fields)
+  - **Note**: When both `Remove Unspecified Fields` and `Omit Empty Fields` are enabled, filtering happens first (keeping only specified fields), then empty field removal is applied to the filtered output.
 - **On Invalid**: Choose how to handle validation failures (options sorted alphabetically):
   - **Continue**: Pass through original data with validation errors included
   - **Set Invalid Fields to Empty**: Set fields that fail validation to empty values (empty string, 0, false, etc.)
