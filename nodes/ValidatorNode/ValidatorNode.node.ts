@@ -75,19 +75,6 @@ export class ValidatorNode implements INodeType {
         },
       },
       {
-        displayName: 'Remove Unspecified Fields',
-        name: 'removeUnspecifiedFields',
-        type: 'boolean',
-        default: false,
-        description: 'When enabled, removes fields from the output that are not specified in the validator inputs',
-        displayOptions: {
-          show: {
-            nodeMode: ['output-items'],
-            outputOnlyIsValid: [false],
-          },
-        },
-      },
-      {
         displayName: 'Enable Phone Rewrite',
         name: 'enablePhoneRewrite',
         type: 'boolean',
@@ -153,6 +140,19 @@ export class ValidatorNode implements INodeType {
         displayOptions: {
           show: {
             nodeMode: ['output-items'],
+          },
+        },
+      },
+      {
+        displayName: 'Remove Unspecified Fields',
+        name: 'removeUnspecifiedFields',
+        type: 'boolean',
+        default: false,
+        description: 'When enabled, removes fields from the output that are not specified in the validator inputs',
+        displayOptions: {
+          show: {
+            nodeMode: ['output-items'],
+            outputOnlyIsValid: [false],
           },
         },
       },
@@ -774,13 +774,13 @@ export class ValidatorNode implements INodeType {
 
           // Always include special fields when present
           if (Object.prototype.hasOwnProperty.call(currentJson, 'isValid')) {
-            filteredJson.isValid = currentJson.isValid as IDataObject;
+            filteredJson.isValid = currentJson.isValid as boolean;
           }
           if (Object.prototype.hasOwnProperty.call(currentJson, 'errors')) {
-            filteredJson.errors = currentJson.errors as IDataObject;
+            filteredJson.errors = currentJson.errors as Array<Record<string, unknown>>;
           }
           if (Object.prototype.hasOwnProperty.call(currentJson, 'phoneRewrites')) {
-            filteredJson.phoneRewrites = currentJson.phoneRewrites as IDataObject;
+            filteredJson.phoneRewrites = currentJson.phoneRewrites as Array<Record<string, unknown>>;
           }
 
           // Copy each allowed path if it exists in the current item.json
