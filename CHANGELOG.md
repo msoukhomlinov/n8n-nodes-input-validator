@@ -1,5 +1,16 @@
 # Changelog
 
+## [2.6.0]
+
+### Added - 2025-11-12
+
+- Remove Unspecified Fields option
+  - New global boolean: "Remove Unspecified Fields" removes fields from output that are not specified in validator inputs
+  - Automatically includes phone rewrite output fields when phone rewrite is enabled
+  - Always preserves special fields (isValid, errors, phoneRewrites)
+  - Supports nested field paths (e.g., `user.email`)
+  - Only visible when "Output only isValid" is disabled
+
 ## [2.5.1]
 
 ### Added - 2025-11-06
