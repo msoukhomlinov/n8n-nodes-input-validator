@@ -500,7 +500,13 @@ export class ValidatorNode implements INodeType {
 
     const returnData: INodeExecutionData[] = [];
     for (let itemIndex = 0; itemIndex < items.length; itemIndex++) {
-      const item: INodeExecutionData = items[itemIndex];
+      const originalItem: INodeExecutionData = items[itemIndex];
+      // Clone the item to avoid mutating the original data from previous nodes
+      const item: INodeExecutionData = {
+        json: JSON.parse(JSON.stringify(originalItem.json)) as IDataObject,
+        ...(originalItem.binary && { binary: originalItem.binary }),
+        ...(originalItem.pairedItem && { pairedItem: originalItem.pairedItem }),
+      };
       const inputFields = this.getNodeParameter(
         'inputs.inputFields',
         itemIndex,
@@ -523,6 +529,50 @@ export class ValidatorNode implements INodeType {
 
         const lastPart = parts[parts.length - 1];
         current[lastPart] = value;
+      };
+
+      // Helper function to extract the actual input value from an InputField
+      const getFieldValue = (field: InputField | undefined): string => {
+        if (!field) {
+          return '<field not found>';
+        }
+
+        let value: unknown;
+        switch (field.validationType) {
+          case 'string':
+          case 'enum':
+            value = field.stringData;
+            break;
+          case 'number':
+            value = field.numberData;
+            break;
+          case 'boolean':
+            value = field.booleanData;
+            break;
+          case 'date':
+            value = field.dateData;
+            break;
+          default:
+            value = '<unknown type>';
+        }
+
+        // Format the value for display
+        if (value === null) {
+          return 'null';
+        }
+        if (value === undefined) {
+          return 'undefined';
+        }
+        if (value === '') {
+          return '<empty string>';
+        }
+
+        // Convert to string and truncate if too long
+        const valueStr = String(value);
+        if (valueStr.length > 100) {
+          return `${valueStr.substring(0, 100)}...`;
+        }
+        return valueStr;
       };
 
       // Handle field-level phone validation errors with field-specific onInvalid settings
@@ -609,7 +659,12 @@ export class ValidatorNode implements INodeType {
       if (remainingValidationErrors.length > 0 && onInvalid !== 'continue') {
         switch (onInvalid) {
           case 'error':
-            throw new NodeOperationError(this.getNode(), `Validation failed for item ${itemIndex}: ${remainingValidationErrors.map(e => e.message).join('; ')}`);
+            const errorMessages = remainingValidationErrors.map(error => {
+              const field = inputFields.find(f => f.name === error.field);
+              const fieldValue = getFieldValue(field);
+              return `Field '${error.field}' with value '${fieldValue}' - ${error.message}`;
+            });
+            throw new NodeOperationError(this.getNode(), `Validation failed for item ${itemIndex}: ${errorMessages.join('; ')}`);
           case 'skip':
             continue;
           case 'set-null':

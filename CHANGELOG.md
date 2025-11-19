@@ -1,5 +1,16 @@
 # Changelog
 
+## [2.6.1]
+
+### Fixed - 2025-01-XX
+
+- **Data Mutation Issue**
+  - Fixed issue where the node was mutating data from previous nodes, causing properties like `isValid` to appear in earlier nodes' outputs
+  - Node now clones input items before processing to prevent mutations to original data structures
+- **Validation Error Messages**
+  - Enhanced error messages when "Throw Error" is enabled to include field name and actual input value
+  - Error format: `Field 'fieldName' with value 'actualValue' - [validation message]`
+
 ## [2.6.0]
 
 ### Added - 2025-11-12
