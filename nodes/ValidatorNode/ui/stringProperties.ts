@@ -331,7 +331,7 @@ export const stringProperties: INodeProperties[] = [
     description: 'Whether the input field is required',
     displayOptions: {
       show: {
-        validationType: ['string', 'enum'],
+        validationType: ['string'],
       },
     },
   },

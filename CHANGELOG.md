@@ -1,8 +1,16 @@
 # Changelog
 
+## [2.6.2]
+
+### Fixed - 2026-01-12
+
+- **Duplicate Required Toggle for Enum Validation**
+  - Fixed issue where two "Required" toggles appeared when Validation Type was set to "Enum" in Output Items mode
+  - Removed duplicate Required field from string properties; enum validation now uses only the enum-specific Required toggle
+
 ## [2.6.1]
 
-### Fixed - 2025-01-XX
+### Fixed - 2025-11-12
 
 - **Data Mutation Issue**
   - Fixed issue where the node was mutating data from previous nodes, causing properties like `isValid` to appear in earlier nodes' outputs
